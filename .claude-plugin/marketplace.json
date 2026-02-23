@@ -1,0 +1,13 @@
+{
+  "name": "vuln-scout",
+  "owner": {
+    "name": "allsmog"
+  },
+  "plugins": [
+    {
+      "name": "vuln-scout",
+      "source": "./whitebox-pentest",
+      "description": "AI-powered whitebox penetration testing plugin for Claude Code. 9 languages, 22 skills, 7 autonomous agents."
+    }
+  ]
+}

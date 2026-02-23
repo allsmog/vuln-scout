@@ -1,0 +1,31 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code local files
+.claude/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Repomix output
+repomix-output.*
+
+# Workspace/CPG analysis artifacts
+workspace/
+*.cpg/
+*.cpg.bin
+
+# Joern artifacts
+joern-workspace/
+.joern/
+
