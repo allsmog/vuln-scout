@@ -1,6 +1,10 @@
-# VulnScout
+<p align="center">
+  <img src="vuln-scout.png" alt="VulnScout" width="280">
+</p>
 
-**AI-powered whitebox penetration testing for Claude Code.**
+<h1 align="center">VulnScout</h1>
+
+<p align="center"><strong>AI-powered whitebox penetration testing for Claude Code.</strong></p>
 
 One command. Full audit. Any codebase.
 
