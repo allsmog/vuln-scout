@@ -25,8 +25,11 @@ Traditional SAST tools find patterns. VulnScout **understands your application**
 ## Quick Start
 
 ```bash
-# Install the plugin
-claude plugin add /path/to/vuln-scout/whitebox-pentest
+# Add the plugin to your project
+claude mcp add --plugin /path/to/vuln-scout/whitebox-pentest
+
+# Or symlink into your project's plugin directory
+ln -s /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
 
 # Run a full audit
 /whitebox-pentest:full-audit .
@@ -41,15 +44,15 @@ claude plugin add /path/to/vuln-scout/whitebox-pentest
 
 | Command | What it does |
 |---------|-------------|
-| `/full-audit` | **One command does everything** -- scopes, threat models, audits, reports |
-| `/threats` | STRIDE threat modeling with data flow diagrams |
-| `/sinks` | Find dangerous functions across 9 languages |
-| `/trace` | Follow data from source to sink |
-| `/scan` | Run Semgrep, CodeQL, or Joern |
-| `/scope` | Handle large codebases with smart compression |
-| `/propagate` | Found one bug? Find every instance of the pattern |
-| `/verify` | CPG-based false positive elimination |
-| `/report` | Generate findings report with remediation |
+| `/whitebox-pentest:full-audit` | **One command does everything** -- scopes, threat models, audits, reports |
+| `/whitebox-pentest:threats` | STRIDE threat modeling with data flow diagrams |
+| `/whitebox-pentest:sinks` | Find dangerous functions across 9 languages |
+| `/whitebox-pentest:trace` | Follow data from source to sink |
+| `/whitebox-pentest:scan` | Run Semgrep, CodeQL, or Joern |
+| `/whitebox-pentest:scope` | Handle large codebases with smart compression |
+| `/whitebox-pentest:propagate` | Found one bug? Find every instance of the pattern |
+| `/whitebox-pentest:verify` | CPG-based false positive elimination |
+| `/whitebox-pentest:report` | Generate findings report with remediation |
 
 ### 7 Autonomous Agents
 
@@ -77,34 +80,36 @@ Skills activate automatically when relevant -- no configuration needed:
 
 ## Supported Languages
 
-| Language | Compression | Static Analysis |
-|----------|-------------|-----------------|
-| Go | 95-97% | Semgrep, Joern |
-| TypeScript/JS | ~80% | Semgrep, CodeQL |
-| Python | 85-90% | Semgrep, Joern |
-| Java | 80-85% | Semgrep, CodeQL |
-| Rust | 85-90% | Semgrep |
-| PHP | 80-85% | Semgrep |
-| C#/.NET | 80-85% | Semgrep, CodeQL |
-| Ruby | 85-90% | Semgrep |
-| Solidity | 70-80% | Semgrep, Slither |
+| Language | Token Reduction | Static Analysis |
+|----------|----------------|-----------------|
+| Go | 95-97% fewer tokens | Semgrep, Joern |
+| TypeScript/JS | ~80% fewer tokens | Semgrep, CodeQL |
+| Python | 85-90% fewer tokens | Semgrep, Joern |
+| Java | 80-85% fewer tokens | Semgrep, CodeQL |
+| Rust | 85-90% fewer tokens | Semgrep |
+| PHP | 80-85% fewer tokens | Semgrep |
+| C#/.NET | 80-85% fewer tokens | Semgrep, CodeQL |
+| Ruby | 85-90% fewer tokens | Semgrep |
+| Solidity | 70-80% fewer tokens | Semgrep, Slither |
 
-## OWASP Top 10 2025 Coverage
+## OWASP Top 10 Coverage
+
+Based on the [OWASP Top 10 (2021)](https://owasp.org/Top10/) with forward-looking alignment to draft 2025 categories:
 
 | # | Category | Status |
 |---|----------|--------|
 | A01 | Broken Access Control | Covered |
-| A02 | Security Misconfiguration | Covered |
-| A03 | Software Supply Chain | Out of scope |
-| A04 | Cryptographic Failures | Covered |
-| A05 | Injection | Covered |
-| A06 | Insecure Design | Covered |
-| A07 | Authentication Failures | Covered |
+| A02 | Cryptographic Failures | Covered |
+| A03 | Injection | Covered |
+| A04 | Insecure Design | Covered |
+| A05 | Security Misconfiguration | Covered |
+| A06 | Vulnerable Components | Out of scope |
+| A07 | Auth & Identity Failures | Covered |
 | A08 | Data Integrity Failures | Covered |
-| A09 | Logging & Alerting | Covered |
-| A10 | Exception Mishandling | Covered |
+| A09 | Logging & Monitoring Failures | Covered |
+| A10 | SSRF | Covered |
 
-**9/10 categories covered.** A03 (Supply Chain) excluded by design -- VulnScout focuses on your code, not your dependencies.
+**9/10 categories covered.** A06 (Vulnerable Components) excluded by design -- VulnScout focuses on your code, not your dependencies.
 
 ## How It Works
 
