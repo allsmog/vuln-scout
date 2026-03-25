@@ -71,7 +71,7 @@ Agents run independently and return detailed analysis:
 - **patch-advisor** -- Specific remediation with code patches
 - **false-positive-verifier** -- Evidence-based verification
 
-### 22 Auto-Activated Skills
+### 27 Auto-Activated Skills
 
 Skills activate automatically when relevant -- no configuration needed:
 
@@ -81,7 +81,9 @@ Skills activate automatically when relevant -- no configuration needed:
 
 **Advanced**: threat-modeling, vulnerability-chains, cross-component, cache-poisoning, postmessage-xss, sandbox-escapes, framework-patterns, nextjs-react
 
-**Infrastructure**: workspace-discovery, mixed-language-monorepos, owasp-2025
+**Infrastructure**: workspace-discovery, mixed-language-monorepos, owasp-2025, secret-scanning
+
+**New Coverage**: ai-ml-attacks, owasp-api-top10, cloud-native, compliance-mapping
 
 ## Supported Languages
 
@@ -251,7 +253,7 @@ whitebox-pentest/
   agents/                       # 7 autonomous security analysts
   commands/                     # 9 slash commands
   hooks/                        # 4 background automation hooks
-  skills/                       # 22 auto-activated knowledge modules
+  skills/                       # 27 auto-activated knowledge modules
   scripts/                      # Helper scripts (Joern queries, etc.)
 ```
 

@@ -234,6 +234,25 @@ No C/C++ support at all. 5 of the CWE Top 10 have zero coverage. The "CWE Top 25
 
 ---
 
+## 9. Issues Resolved in v1.4.0
+
+The following P0 issues identified in this audit were fixed in commit `5139e3e` (VulnScout v1.4.0):
+
+1. **OWASP numbering** -- `owasp-2025/SKILL.md` now uses correct OWASP Top 10 2021 categories (A03=Injection, A10=SSRF).
+2. **README skill count** -- Both READMEs now correctly state "22 Auto-Activated Skills".
+3. **Installation instructions** -- READMEs now show the correct symlink/copy approach (`mkdir -p .claude/plugins && ln -s ...`), not the non-existent `claude --plugin-dir`.
+4. **scan.md missing Step 2** -- Steps are now numbered sequentially (1 through 6) with Step 2 being "Apply baseline exclusions".
+
+The following issues were fixed in the post-audit improvement pass:
+
+5. **Version drift** -- `plugin.json` bumped from 1.3.0 to 1.4.0.
+6. **Joern sanitizer false positives** -- All `.name()` patterns in Sanitizers and verify scripts anchored with `^(...)$` to prevent partial matches.
+7. **path.resolve() FP logic** -- `verify-path.sc` now distinguishes strong normalizers (realpath/Clean) from weak ones (resolve). `resolve + prefix check` produces NEEDS_REVIEW, not FALSE_POSITIVE.
+8. **Session flag fiction** -- `large-codebase-check.md` now uses file-based `.claude/session-state.json` instead of non-existent in-memory variables.
+9. **Dead Kotlin/Swift sinks** -- Both files annotated with "Preview language" banners; references in SKILL.md marked as `*(preview)*`.
+
+---
+
 ## Overall Verdict
 
 The methodology is genuinely solid — the 4-phase approach, vulnerability chaining, CPG-based verification, and polyglot monorepo support are real differentiators that reflect actual pentesting experience. The problems are mostly in execution details: wrong OWASP labels, installation instructions that don't work, Joern scripts that silently fail on non-JS codebases, and missing ecosystem integration (SARIF, CI/CD, suppression). Fix P0 and P1 and this is a credible tool. As-is, the correctness issues with OWASP numbering and Joern scope would undermine trust in a professional engagement context.
