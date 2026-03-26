@@ -84,7 +84,7 @@ python3 scripts/scan_orchestrator.py . --tools semgrep --fail-on high --format s
 | `/whitebox-pentest:verify` | CPG-based false positive elimination |
 | `/whitebox-pentest:report` | Render Markdown, JSON, or SARIF from the shared findings artifact |
 
-### 7 Autonomous Agents
+### 8 Autonomous Agents
 
 Agents run independently and return detailed analysis:
 
@@ -95,6 +95,7 @@ Agents run independently and return detailed analysis:
 - **poc-developer** -- Proof of concept development
 - **patch-advisor** -- Specific remediation with code patches
 - **false-positive-verifier** -- Evidence-based verification with NEEDS_REVIEW resolution path
+- **attack-researcher** -- Autonomous attack vector exploration beyond pattern matching
 
 ### 15 Joern CPG Verification Scripts
 
