@@ -128,7 +128,7 @@ class PathHardeningTests(unittest.TestCase):
             external.write_text('{"openapi": "3.0.0", "paths": {}}')
             repo = root / "repo"
             repo.mkdir()
-            (repo / "spec.json").symlink_to(external)
+            (repo / "openapi.json").symlink_to(external)
 
             specs = api_spec_parser.discover_specs(str(repo))
 
