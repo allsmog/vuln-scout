@@ -1,0 +1,10 @@
+{
+  "name": "@kuzushi/vuln-scout",
+  "version": "1.4.0",
+  "description": "AI-powered whitebox pentesting plugin for Kuzushi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/allsmog/vuln-scout.git"
+  }
+}
