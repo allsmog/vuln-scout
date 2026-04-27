@@ -35,6 +35,13 @@ class RepoContractTests(unittest.TestCase):
         self.assertIn("record a hotspot", text)
         self.assertIn("do not escalate it to a reportable finding", text)
 
+    def test_full_audit_references_shared_prompt_fragments(self) -> None:
+        text = (PLUGIN_ROOT / "commands" / "full-audit.md").read_text()
+        for fragment in ("phases.md", "artifact-contract.md", "safety.md"):
+            path = PLUGIN_ROOT / "references" / "full-audit" / fragment
+            self.assertTrue(path.exists())
+            self.assertIn(f"references/full-audit/{fragment}", text)
+
     def test_trace_command_requires_evidence_per_hop(self) -> None:
         text = (PLUGIN_ROOT / "commands" / "trace.md").read_text()
         for phrase in ("Language-specific tracing templates", "Source evidence", "Hop chain", "Exploitability evidence"):

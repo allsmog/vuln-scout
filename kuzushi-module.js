@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMMANDS_DIR = join(__dirname, "whitebox-pentest", "commands");
+const PACKAGE_JSON = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+const PACKAGE_VERSION = PACKAGE_JSON.version;
 
 function loadCommand(name) {
   const commandPath = join(COMMANDS_DIR, `${name}.md`);
@@ -62,7 +64,7 @@ export default {
   id: "vuln-scout",
   displayName: "VulnScout Whitebox Pentesting",
   category: "offense",
-  version: "1.4.0",
+  version: PACKAGE_VERSION,
   description:
     "AI-powered whitebox pentesting with Semgrep, Joern CPG, CodeQL. " +
     "9-language support, STRIDE modeling, evidence-first findings.",

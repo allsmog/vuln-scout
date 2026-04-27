@@ -60,6 +60,25 @@ class PocHardeningTests(unittest.TestCase):
         self.assertNotIn('\nimport os\n', script)
         self.assertIn("json.loads(", script)
 
+    def test_generated_poc_defaults_to_dry_run_and_requires_execute_target(self):
+        finding = {
+            "id": "VSCOUT-1",
+            "type": "command-injection",
+            "file": "app.py",
+            "line": 7,
+            "title": "Command injection",
+            "cvss_score": 9.1,
+        }
+
+        script = poc_generator.generate_poc(finding)
+
+        self.assertIsNotNone(script)
+        ast.parse(script)
+        self.assertIn('parser.add_argument("--execute"', script)
+        self.assertIn("if not args.execute:", script)
+        self.assertIn('parser.error("--target is required with --execute")', script)
+        self.assertNotIn('default="http://localhost:8080"', script)
+
     def test_generate_all_pocs_sanitizes_output_filename(self):
         finding = {
             "id": "../../very bad id",

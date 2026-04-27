@@ -43,6 +43,7 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertIn("--require-tools", help_text)
         self.assertIn("--custom-rules", help_text)
         self.assertIn("--extended-detectors", help_text)
+        self.assertIn("--no-filter", help_text)
         self.assertIn("--no-claude-analysis", help_text)
         self.assertNotIn("--scope", help_text)
 
@@ -91,6 +92,32 @@ class ScanCliParityTests(unittest.TestCase):
             artifact = json.loads(artifact_path.read_text())
             self.assertEqual(artifact["tool_status"]["failed"], ["semgrep"])
             self.assertEqual(artifact["tool_status"]["unavailable"], [])
+            self.assertEqual(artifact["tool_status"]["by_tool"]["semgrep"]["state"], "failed")
+
+    def test_tool_status_preserves_partial_analyzer_state(self):
+        artifact = {}
+        result = scan_orchestrator.ToolRunResult(
+            findings=[],
+            tools_succeeded=["codeql"],
+            tools_failed=[],
+            tool_statuses={
+                "codeql": {
+                    "tool": "codeql",
+                    "state": "partially_skipped",
+                    "findings": 1,
+                    "languages": {
+                        "python": {"state": "succeeded", "findings": 1},
+                        "java": {"state": "timed_out", "findings": 0},
+                    },
+                }
+            },
+        )
+
+        scan_orchestrator.attach_tool_status(artifact, ["codeql", "joern"], ["codeql"], result)
+
+        self.assertEqual(artifact["tool_status"]["by_tool"]["codeql"]["state"], "partially_skipped")
+        self.assertEqual(artifact["tool_status"]["by_tool"]["codeql"]["languages"]["java"]["state"], "timed_out")
+        self.assertEqual(artifact["tool_status"]["by_tool"]["joern"]["state"], "unavailable")
 
     def test_demo_quick_scan_writes_expected_offline_artifact(self):
         semgrep_payload = {
