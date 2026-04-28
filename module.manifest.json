@@ -1,7 +1,7 @@
 {
   "id": "vuln-scout",
   "displayName": "VulnScout Whitebox Pentesting",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "AI-powered whitebox pentesting with Semgrep, Joern CPG, CodeQL integration. 9-language support, STRIDE threat modeling, evidence-first findings.",
   "category": "offense",
   "entry": "./kuzushi-module.js",

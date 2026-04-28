@@ -406,6 +406,104 @@ class ReportCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn('"summary"', result.stdout)
 
+    def test_report_cli_writes_evidence_bundle(self):
+        artifact = FIXTURES_DIR / "sample-findings.json"
+        suppressions = FIXTURES_DIR / "sample.vuln-scout-ignore"
+        script = SCRIPTS_DIR / "report.py"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "bundle"
+            result = subprocess.run(
+                [
+                    sys.executable, str(script), str(artifact),
+                    "--format", "bundle",
+                    "--suppressions", str(suppressions),
+                    "--output", str(output_dir),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for name in ("findings.json", "findings.sarif", "vex.json", "attestation.json", "README.md"):
+                self.assertTrue((output_dir / name).exists(), name)
+
+            findings = json.loads((output_dir / "findings.json").read_text())
+            sarif = json.loads((output_dir / "findings.sarif").read_text())
+            vex = json.loads((output_dir / "vex.json").read_text())
+            attestation = json.loads((output_dir / "attestation.json").read_text())
+
+            self.assertEqual(findings["summary"]["total_findings"], 1)
+            self.assertEqual(len(sarif["runs"][0]["results"]), 1)
+            self.assertEqual(vex["vulnerabilities"][0]["analysis"]["state"], "affected")
+            self.assertEqual(attestation["suppressions"]["provided"], 1)
+            self.assertEqual(attestation["suppressions"]["applied"], 1)
+            self.assertRegex(attestation["source_artifact_sha256"], r"^[0-9a-f]{64}$")
+
+    def test_report_cli_bundle_requires_output_directory(self):
+        artifact = FIXTURES_DIR / "sample-findings.json"
+        script = SCRIPTS_DIR / "report.py"
+
+        missing_output = subprocess.run(
+            [sys.executable, str(script), str(artifact), "--format", "bundle"],
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(missing_output.returncode, 1)
+        self.assertIn("--output is required", missing_output.stderr)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = Path(tmpdir) / "bundle"
+            output_file.write_text("not a directory\n")
+            file_output = subprocess.run(
+                [
+                    sys.executable, str(script), str(artifact),
+                    "--format", "bundle",
+                    "--output", str(output_file),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(file_output.returncode, 1)
+        self.assertIn("must be a directory", file_output.stderr)
+
+    def test_report_cli_bundle_vex_statuses_follow_verdicts(self):
+        script = SCRIPTS_DIR / "report.py"
+        artifact = json.loads((FIXTURES_DIR / "sample-findings.json").read_text())
+        artifact["findings"][0]["stable_key"] = "fixture:affected"
+        artifact["findings"][0]["verdict"] = "verified"
+        artifact["findings"][2]["stable_key"] = "fixture:not-affected"
+        artifact["findings"][2]["verdict"] = "false_positive"
+        artifact["findings"][2]["kind"] = "finding"
+        artifact["summary"] = {
+            "total_findings": 2, "total_hotspots": 1,
+            "critical": 1, "high": 1, "medium": 0, "low": 0, "info": 0,
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifact_path = Path(tmpdir) / "findings.json"
+            artifact_path.write_text(json.dumps(artifact))
+            output_dir = Path(tmpdir) / "bundle"
+            result = subprocess.run(
+                [
+                    sys.executable, str(script), str(artifact_path),
+                    "--format", "bundle",
+                    "--output", str(output_dir),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            states = [
+                vulnerability["analysis"]["state"]
+                for vulnerability in json.loads((output_dir / "vex.json").read_text())["vulnerabilities"]
+            ]
+
+        self.assertEqual(states, ["affected", "not_affected"])
+
 
 class RunDiffCliTests(unittest.TestCase):
     def test_run_diff_markdown_output(self):

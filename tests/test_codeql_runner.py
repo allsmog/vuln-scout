@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -139,6 +141,52 @@ class CodeQlRunnerTests(unittest.TestCase):
 
             copied = sorted(path.relative_to(source_view).as_posix() for path in source_view.rglob("*.py"))
             self.assertEqual(copied, ["app.py"])
+
+    def test_analyze_database_appends_model_packs_when_provided(self) -> None:
+        commands: list[list[str]] = []
+
+        def fake_run(cmd, *args, **kwargs):
+            commands.append(cmd)
+            for part in cmd:
+                if str(part).startswith("--output="):
+                    Path(str(part).split("=", 1)[1]).write_text('{"runs": []}')
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "db"
+            sarif_path = Path(tmpdir) / "results.sarif"
+            with mock.patch.object(codeql_runner, "_ensure_query_pack", return_value={"state": "succeeded"}):
+                with mock.patch.object(codeql_runner.subprocess, "run", side_effect=fake_run):
+                    status = codeql_runner._analyze_database_status(
+                        db_path,
+                        sarif_path,
+                        "python",
+                        model_packs=["/tmp/models/python", "/tmp/models/common"],
+                    )
+
+        self.assertEqual(status["state"], "succeeded")
+        self.assertIn("--model-packs", commands[0])
+        self.assertIn("/tmp/models/python,/tmp/models/common", commands[0])
+
+    def test_analyze_database_omits_model_packs_by_default(self) -> None:
+        commands: list[list[str]] = []
+
+        def fake_run(cmd, *args, **kwargs):
+            commands.append(cmd)
+            for part in cmd:
+                if str(part).startswith("--output="):
+                    Path(str(part).split("=", 1)[1]).write_text('{"runs": []}')
+            return subprocess.CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "db"
+            sarif_path = Path(tmpdir) / "results.sarif"
+            with mock.patch.object(codeql_runner, "_ensure_query_pack", return_value={"state": "succeeded"}):
+                with mock.patch.object(codeql_runner.subprocess, "run", side_effect=fake_run):
+                    status = codeql_runner._analyze_database_status(db_path, sarif_path, "python")
+
+        self.assertEqual(status["state"], "succeeded")
+        self.assertNotIn("--model-packs", commands[0])
 
 
 if __name__ == "__main__":
