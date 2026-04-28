@@ -31,7 +31,7 @@ Joern is optional for `quick`. It improves verification in `deep` and `audit`.
 Checks:
 
 ```bash
-joern --version
+joern --help
 python3 whitebox-pentest/scripts/create_cpg.py /path/to/code
 ```
 

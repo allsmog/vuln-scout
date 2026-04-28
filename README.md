@@ -87,7 +87,7 @@ Traditional SAST tools find patterns. VulnScout **understands your application**
 - **Automated scan pipeline** -- Semgrep + Joern CPG + secret scanning in one command, with SARIF and Markdown output
 - **Threat models first, then hunts** -- STRIDE analysis identifies what matters before scanning
 - **Traces data flow, not just patterns** -- follows user input from source to sink across files and services
-- **15 CPG verification scripts** -- proves exploitability through Code Property Graph analysis, not just pattern matching
+- **11 CPG verification scripts** -- proves exploitability through Code Property Graph analysis, not just pattern matching
 - **CVSS 3.1 auto-scoring** -- every finding gets a CVSS vector and numeric score
 - **Handles massive codebases** -- language-aware compression (Go: 97% reduction, Python: 90%) lets it audit million-token monorepos
 - **Chains vulnerabilities** -- finds SSRF-to-SSTI-to-RCE attack chains that single-pattern scanners miss
@@ -195,7 +195,7 @@ Agents run independently and return detailed analysis:
 - **false-positive-verifier** -- Evidence-based verification with NEEDS_REVIEW resolution path
 - **attack-researcher** -- Autonomous attack vector exploration beyond pattern matching
 
-### 15 Joern CPG Verification Scripts
+### 11 Joern CPG Verification Scripts
 
 Each script proves or disproves a vulnerability through Code Property Graph data flow analysis:
 
@@ -211,11 +211,9 @@ Each script proves or disproves a vulnerability through Code Property Graph data
 | verify-deser | Unsafe deserialization (SafeLoader, ObjectInputFilter) |
 | verify-ldap | LDAP injection (filter escaping) |
 | verify-randomness | Insecure randomness (crypto alternatives) |
-| verify-reentrancy | Solidity reentrancy (CEI pattern) |
-| verify-overflow | Solidity integer overflow (SafeMath, Solidity >=0.8) |
-| verify-access-control | Solidity missing access control (onlyOwner, tx.origin) |
-| verify-delegatecall | Solidity delegatecall risks (proxy patterns, EIP-1967) |
 | verify-generic | Fallback for types without a dedicated script |
+
+Solidity analysis is Slither-owned. Joern returns `na_cpg` for Solidity because the supported Joern frontends used by VulnScout do not include a Solidity CPG frontend.
 
 ### 27 Auto-Activated Skills
 
@@ -251,9 +249,9 @@ Dedicated detection patterns for:
 | Java | 80-85% fewer tokens | Semgrep, CodeQL | Yes |
 | PHP | 80-85% fewer tokens | Semgrep | Yes |
 | Ruby | 85-90% fewer tokens | Semgrep | Yes |
-| Rust | 85-90% fewer tokens | Semgrep | -- |
-| C#/.NET | 80-85% fewer tokens | Semgrep, CodeQL | -- |
-| Solidity | 70-80% fewer tokens | Semgrep, Slither | Yes (4 scripts) |
+| Rust | 85-90% fewer tokens | Semgrep, CodeQL | -- |
+| C#/.NET | 80-85% fewer tokens | Semgrep, CodeQL, Joern | Yes |
+| Solidity | 70-80% fewer tokens | Semgrep, Slither | Slither-owned |
 
 ## OWASP Top 10 Mapping
 
@@ -448,7 +446,7 @@ whitebox-pentest/
     validate_evals.py           # Prompt eval definition validator
     run_prompt_evals.py         # Prompt/skill benchmark runner
     tool_runners/               # Modular tool runner package
-    joern/                      # 15 CPG verification scripts
+    joern/                      # CPG verification and discovery scripts
 ```
 
 ## License

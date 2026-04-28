@@ -5,7 +5,7 @@
   },
   "plugins": [
     {
-      "name": "vuln-scout",
+      "name": "whitebox-pentest",
       "source": "./whitebox-pentest",
       "description": "AI-powered whitebox penetration testing plugin for Claude Code. 9 languages, 27 skills, 8 autonomous agents."
     }

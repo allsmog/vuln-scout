@@ -102,7 +102,7 @@ def findAttackerFlows(sink: Call, language: String, focus: String = "http"): Lis
 }
 ```
 
-**The 10 verify scripts that use the two-tier parameterFlows/fieldFlows pattern** (verify-sqli, verify-xss, verify-ssrf, verify-cmdi, verify-path, verify-ssti, verify-deser, verify-xxe, verify-ldap, verify-generic). The 5 Solidity-specific scripts (verify-reentrancy, verify-overflow, verify-access-control, verify-delegatecall) and verify-randomness use different detection logic and are not modified.
+**The 10 verify scripts that use the two-tier parameterFlows/fieldFlows pattern** (verify-sqli, verify-xss, verify-ssrf, verify-cmdi, verify-path, verify-ssti, verify-deser, verify-xxe, verify-ldap, verify-generic). Legacy Solidity-specific scripts are not routed by VulnScout; Solidity verification is Slither-owned and Joern returns `na_cpg`.
 
 Replace the two-tier source resolution pattern:
 ```scala

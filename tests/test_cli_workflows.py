@@ -119,6 +119,27 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertEqual(artifact["tool_status"]["by_tool"]["codeql"]["languages"]["java"]["state"], "timed_out")
         self.assertEqual(artifact["tool_status"]["by_tool"]["joern"]["state"], "unavailable")
 
+    def test_detect_languages_excludes_analyzer_cache_dirs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            (root / "app.py").write_text("print('real')\n")
+            codeql_copy = root / ".codeql" / "_source_views" / "old-python"
+            codeql_copy.mkdir(parents=True)
+            (codeql_copy / "app.py").write_text("print('copy')\n")
+            joern_copy = root / ".joern" / "_source_views" / "old-go"
+            joern_copy.mkdir(parents=True)
+            (joern_copy / "main.go").write_text("package main\n")
+
+            scope = scan_orchestrator.ScanScope(
+                target_path=root,
+                changed_files=None,
+                excluded_patterns=list(scan_orchestrator.BASELINE_EXCLUDES),
+                diff_ref=None,
+            )
+            languages = scan_orchestrator.detect_languages(scope)
+
+            self.assertEqual(languages, {"python": ["app.py"]})
+
     def test_demo_quick_scan_writes_expected_offline_artifact(self):
         semgrep_payload = {
             "errors": [],

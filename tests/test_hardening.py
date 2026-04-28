@@ -140,6 +140,42 @@ class PathHardeningTests(unittest.TestCase):
 
             self.assertEqual(first, second)
 
+    def test_create_cpg_relative_cache_lives_under_source_root(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir) / "repo"
+            repo.mkdir()
+
+            cache_root = create_cpg.cache_root_for(str(repo), ".joern")
+
+            self.assertEqual(cache_root, repo.resolve() / ".joern")
+
+    def test_create_cpg_hash_ignores_generated_source_views(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir) / "repo"
+            repo.mkdir()
+            (repo / "app.py").write_text("print('real')\n")
+            before_hash = create_cpg.compute_source_hash(str(repo), "python")
+            source_view = repo / ".joern" / "_source_views" / "cache-python"
+            source_view.mkdir(parents=True)
+            (source_view / "app.py").write_text("print('generated copy')\n")
+            claude_state = repo / ".claude"
+            claude_state.mkdir()
+            (claude_state / "generated.py").write_text("print('claude state')\n")
+
+            detected = create_cpg.detect_languages(str(repo))
+
+            self.assertEqual(detected.get("python"), 1)
+            self.assertEqual(before_hash, create_cpg.compute_source_hash(str(repo), "python"))
+
+    def test_create_cpg_detects_solidity_but_does_not_select_it_for_joern(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir) / "repo"
+            repo.mkdir()
+            (repo / "Vault.sol").write_text("contract Vault {}\n")
+
+            self.assertEqual(create_cpg.detect_languages(str(repo)).get("solidity"), 1)
+            self.assertEqual(create_cpg.detect_language(str(repo)), "unknown")
+
     def test_api_spec_discovery_skips_external_symlink(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -268,6 +304,19 @@ class JoernBundleHardeningTests(unittest.TestCase):
 
         self.assertIsNotNone(result)
         self.assertEqual(victim.read_text(), "ORIGINAL")
+
+    def test_joern_discovery_parses_multiline_json_after_logs(self):
+        output = """[INFO ] noisy prefix
+[{"type":"ssrf","file":"app.py","line":5,"sink":"requests.get","source_tool":"joern"},
+{"type":"ssrf","file":"main.go","line":9,"sink":"http.Get(target)","source_tool":"joern"}]
+[INFO ] closed graph
+"""
+
+        result = joern_runner._parse_json_array(output)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["file"], "app.py")
 
 
 if __name__ == "__main__":
