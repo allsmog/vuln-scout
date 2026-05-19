@@ -141,6 +141,21 @@ def validate() -> list[str]:
         if not (PLUGIN_ROOT / "evals" / eval_artifact).exists():
             errors.append(f"evals/{eval_artifact} is missing")
 
+    for hook_name in (
+        "handoff-app-mapper.md",
+        "handoff-code-reviewer.md",
+        "handoff-local-tester.md",
+    ):
+        hook_path = PLUGIN_ROOT / "hooks" / hook_name
+        if not hook_path.exists():
+            errors.append(f"hooks/{hook_name} is missing")
+            continue
+        hook_text = _read(hook_path)
+        if ".unlink(missing_ok=True)" not in hook_text:
+            errors.append(f"{hook_name} must delete stale handoff files before writing")
+        if "os.replace" not in hook_text:
+            errors.append(f"{hook_name} must write handoff files atomically")
+
     schema_text = _read(schema_path) if schema_path.exists() else ""
     for required_key in ("schema_version", "stable_key", "kind", "source_tool", "evidence"):
         if f'"{required_key}"' not in schema_text:
