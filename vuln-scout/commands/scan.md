@@ -1,7 +1,7 @@
 ---
 name: scan
 description: "[beta] Run quick, deep, or audit scan profiles and emit a shared findings artifact"
-argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-claude-analysis]"
+argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
 allowed-tools:
   - Bash
   - Glob
@@ -37,7 +37,9 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 | `--incremental` | Use file-hash cache to skip unchanged files |
 | `--generate-pocs` | Generate proof-of-concept scripts for verified findings |
 | `--no-filter` | Keep low-confidence Semgrep audit results as hotspots instead of dropping them |
-| `--no-claude-analysis` | Compatibility flag for callers that share `/full-audit` options; the standalone CLI does not run a Claude semantic analysis phase |
+| `--no-semantic-analysis` | Compatibility flag for callers that share `/full-audit` options; the standalone CLI does not run a Claude semantic analysis phase |
+
+The `audit` profile does not invoke Claude during the scan phase; semantic review is performed afterward by `/vuln-scout:verify` or `/vuln-scout:full-audit`.
 
 ## Shared artifact contract
 
@@ -224,7 +226,7 @@ Example:
 }
 ```
 
-## Step 5.5: Claude Semantic Analysis (unless `--no-claude-analysis`)
+## Step 5.5: Claude Semantic Analysis (unless `--no-semantic-analysis`)
 
 After writing `findings.json`, use Claude's reasoning to both verify static findings AND discover vulnerabilities the tools missed.
 

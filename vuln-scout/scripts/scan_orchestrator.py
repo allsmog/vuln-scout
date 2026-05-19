@@ -104,7 +104,7 @@ SCAN_PROFILES: dict[str, dict[str, str]] = {
     "audit": {
         "tools": "semgrep,secrets,joern,codeql",
         "rules": "local",
-        "description": "Claude-assisted review baseline with local rules and verification tools",
+        "description": "Deterministic baseline for Claude-driven review (semgrep + joern + codeql + secrets, offline)",
     },
 }
 
@@ -653,10 +653,10 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s", stream=sys.stderr)
 
-    if args.no_claude_analysis:
+    if args.no_semantic_analysis:
         log.info(
-            "--no-claude-analysis is a compatibility flag; standalone scan_orchestrator.py "
-            "does not run a Claude semantic analysis phase."
+            "--no-semantic-analysis acknowledged; scan_orchestrator.py runs only deterministic analyzers. "
+            "Semantic analysis is performed by /vuln-scout:verify or /vuln-scout:full-audit post-scan."
         )
 
     try:
@@ -917,7 +917,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--profile",
         choices=sorted(SCAN_PROFILES.keys()),
         default="quick",
-        help="Scan profile: quick=local deterministic rules, deep=installed analyzers, audit=Claude-assisted baseline",
+        help="Scan profile: quick=local deterministic rules, deep=installed analyzers, audit=deterministic Claude-driven review baseline",
     )
     parser.add_argument("--tools", help="Override profile tools. Comma-separated: semgrep,joern,codeql,secrets,trivy,checkov,slither")
     parser.add_argument("--rules", help="Override profile Semgrep ruleset or local rules path")
@@ -939,9 +939,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--incremental", action="store_true", help="Use incremental scan cache")
     parser.add_argument("--generate-pocs", action="store_true", help="Generate PoC scripts for verified findings")
     parser.add_argument(
+        "--no-semantic-analysis",
+        action="store_true",
+        dest="no_semantic_analysis",
+        help="Acknowledge that scan_orchestrator.py runs only deterministic analyzers; semantic analysis happens after scan.",
+    )
+    parser.add_argument(
         "--no-claude-analysis",
         action="store_true",
-        help="Compatibility flag for callers that share /full-audit options; standalone scan does not run a Claude analysis phase.",
+        dest="no_semantic_analysis",
+        help=argparse.SUPPRESS,
     )
     return parser
 
