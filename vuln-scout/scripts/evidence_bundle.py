@@ -29,11 +29,29 @@ def _unsuppressed_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _vex_state(finding: dict[str, Any]) -> str:
+    exploitability = (finding.get("trust_metadata") or {}).get("exploitability_status")
+    if exploitability == "confirmed":
+        return "affected"
+    if exploitability in ("blocked_by_control", "unreachable"):
+        return "not_affected"
+    if exploitability in ("plausible", "requires_auth", "unknown"):
+        return "under_investigation"
     if finding.get("dynamic_verified") or finding.get("verdict") == "verified":
         return "affected"
     if finding.get("verdict") == "false_positive":
         return "not_affected"
     return "under_investigation"
+
+
+def _vex_justification(finding: dict[str, Any]) -> str | None:
+    exploitability = (finding.get("trust_metadata") or {}).get("exploitability_status")
+    if exploitability == "blocked_by_control":
+        return "protected_by_mitigating_control"
+    if exploitability == "unreachable":
+        return "code_not_reachable"
+    if exploitability == "requires_auth":
+        return "requires_environment"
+    return None
 
 
 def _cwe_numbers(finding: dict[str, Any]) -> list[int]:
@@ -69,14 +87,23 @@ def build_vex(artifact: dict[str, Any], generated_at: str | None = None) -> dict
     vulnerabilities = []
     for finding in _unsuppressed_findings(artifact):
         stable_key = stable_key_for(finding)
+        state = _vex_state(finding)
+        justification = _vex_justification(finding)
+        trust = finding.get("trust_metadata") or {}
+        confidence_reason = str(trust.get("confidence_reason", ""))
+        evidence_summary = _evidence_summary(finding)
+        analysis = {
+            "state": state,
+            "detail": "; ".join([confidence_reason, evidence_summary]).strip("; "),
+            "response": [],
+        }
+        if state == "not_affected" and justification:
+            analysis["justification"] = justification
         vulnerability: dict[str, Any] = {
             "id": stable_key,
             "source": {"name": "VulnScout"},
             "description": finding.get("message", finding.get("title", "")),
-            "analysis": {
-                "state": _vex_state(finding),
-                "detail": _evidence_summary(finding),
-            },
+            "analysis": analysis,
             "affects": [{"ref": project_name}],
             "properties": [
                 {"name": "vuln-scout:id", "value": str(finding.get("id", ""))},
@@ -85,6 +112,9 @@ def build_vex(artifact: dict[str, Any], generated_at: str | None = None) -> dict
                 {"name": "vuln-scout:verdict", "value": str(finding.get("verdict", ""))},
                 {"name": "vuln-scout:file", "value": str(finding.get("file", ""))},
                 {"name": "vuln-scout:line", "value": str(finding.get("line", 0))},
+                {"name": "vuln-scout:provenance", "value": str((trust.get("provenance") or {}).get("origin", ""))},
+                {"name": "vuln-scout:fp_risk", "value": str((trust.get("false_positive_risk") or {}).get("level", ""))},
+                {"name": "vuln-scout:exploitability_status", "value": str(trust.get("exploitability_status", ""))},
             ],
         }
         cwes = _cwe_numbers(finding)
@@ -130,6 +160,14 @@ def build_attestation(
         for finding in artifact.get("findings", [])
         if finding.get("suppressed")
     ]
+    provenance_counts: dict[str, int] = {}
+    fp_risk_counts: dict[str, int] = {}
+    for finding in artifact.get("findings", []):
+        trust = finding.get("trust_metadata") or {}
+        provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
+        fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))
+        provenance_counts[provenance] = provenance_counts.get(provenance, 0) + 1
+        fp_risk_counts[fp_risk] = fp_risk_counts.get(fp_risk, 0) + 1
     return {
         "attestation_type": "vuln-scout.evidence-bundle",
         "generated_at": generated_at,
@@ -145,6 +183,10 @@ def build_attestation(
             "provided": len(suppressions),
             "applied": len(applied),
             "applied_keys": sorted(applied),
+        },
+        "trust_model_summary": {
+            "provenance": dict(sorted(provenance_counts.items())),
+            "fp_risk": dict(sorted(fp_risk_counts.items())),
         },
         "bundle_files": [
             "findings.json",
@@ -183,6 +225,11 @@ def _readme(artifact: dict[str, Any], generated_at: str) -> str:
         f"- Medium: {summary.get('medium', 0)}",
         f"- Low: {summary.get('low', 0)}",
         f"- Info: {summary.get('info', 0)}",
+        "",
+        "## Trust Model",
+        "",
+        "Findings may include trust metadata for provenance, false-positive risk, exploitability status, and confidence rationale.",
+        "VEX states prefer this trust metadata when present.",
         "",
     ])
 
