@@ -47,6 +47,9 @@ jobs:
       - name: Validate Kuzushi module import
         run: node -e "import('./kuzushi-module.js').then(() => console.log('import ok'))"
 
+      - name: Validate Kuzushi parity
+        run: pytest tests/test_kuzushi_parity.py -v
+
       - name: Validate package contents
         run: npm --cache /tmp/vuln-scout-npm-cache pack --dry-run
 
