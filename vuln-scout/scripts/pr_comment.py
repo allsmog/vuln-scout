@@ -37,6 +37,7 @@ def generate(artifact: dict[str, Any]) -> str:
 
     sections = [
         _header_table(summary),
+        _trust_legend(),
         _new_in_pr(reportable),
         _chain_summary(chains),
         _full_list(reportable),
@@ -82,6 +83,29 @@ def _header_table(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _trust_marker(finding: dict[str, Any]) -> str:
+    trust = finding.get("trust_metadata") or {}
+    provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
+    fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))
+    exploitability = str(trust.get("exploitability_status", "unknown")).split("_", 1)[0]
+    provenance_codes = {
+        "deterministic_tool": "DET",
+        "llm_analysis": "LLM",
+        "dynamic_verified": "DYN",
+        "human_review": "HR",
+        "mixed": "MIX",
+    }
+    fp_codes = {"low": "L", "medium": "M", "high": "H", "unknown": "?"}
+    return f"[T:{provenance_codes.get(provenance, '?')}|FP:{fp_codes.get(fp_risk, '?')}|X:{exploitability}]"
+
+
+def _trust_legend() -> str:
+    return (
+        "**Trust legend:** `T` provenance (DET/LLM/DYN/HR/MIX), "
+        "`FP` false-positive risk (L/M/H/?), `X` exploitability."
+    )
+
+
 # ---------------------------------------------------------------------------
 # New in this PR (diff-aware findings)
 # ---------------------------------------------------------------------------
@@ -102,7 +126,7 @@ def _new_in_pr(reportable: list[dict[str, Any]]) -> str:
         title = f.get("title", "Unknown")
         loc = f"`{f.get('file', '?')}:{f.get('line', '?')}`"
         verdict = f.get("verdict", "needs review")
-        lines.append(f"- **[{sev}]** {title} in {loc} -- {verdict}")
+        lines.append(f"- **[{sev}]** {_trust_marker(f)} {title} in {loc} -- {verdict}")
 
     return "\n".join(lines)
 
@@ -149,7 +173,7 @@ def _full_list(reportable: list[dict[str, Any]]) -> str:
         cvss = f.get("cvss_score")
         cvss_str = f" (CVSS {cvss:.1f})" if cvss else ""
         in_diff = " :new:" if f.get("in_diff") else ""
-        lines.append(f"- **[{sev}]** {title} at {loc} -- {verdict}{cvss_str}{in_diff}")
+        lines.append(f"- **[{sev}]** {_trust_marker(f)} {title} at {loc} -- {verdict}{cvss_str}{in_diff}")
 
     lines.append("")
     lines.append("</details>")
@@ -212,7 +236,7 @@ def _truncate(body: str, reportable: list[dict[str, Any]]) -> str:
         title = f.get("title", "Unknown")
         loc = f"`{f.get('file', '?')}:{f.get('line', '?')}`"
         verdict = f.get("verdict", "unverified")
-        line = f"- **[{sev}]** {title} at {loc} -- {verdict}"
+        line = f"- **[{sev}]** {_trust_marker(f)} {title} at {loc} -- {verdict}"
         trimmed_details_lines.append(line)
         kept += 1
 
