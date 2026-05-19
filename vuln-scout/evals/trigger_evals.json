@@ -70,5 +70,110 @@
     "should_trigger": false,
     "repeat": 3,
     "min_trigger_rate": 0.0
+  },
+  {
+    "id": "task-start-audit-positive",
+    "kind": "skill",
+    "query": "Start audit on this repo and review this codebase for vulns.",
+    "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
+    "expected_targets": ["start-audit"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-review-pr-positive",
+    "kind": "skill",
+    "query": "Review this PR with a diff scan against origin/main.",
+    "fixture_path": "tests/fixtures/code/js/vulnerable-sqli",
+    "expected_targets": ["review-pr"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-verify-finding-positive",
+    "kind": "skill",
+    "query": "Verify VSCOUT-0002 and tell me if this is exploitable.",
+    "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
+    "expected_targets": ["verify-finding"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-package-evidence-positive",
+    "kind": "skill",
+    "query": "Package evidence and export a bundle I can share.",
+    "fixture_path": "tests/fixtures/artifacts",
+    "expected_targets": ["package-evidence"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-scope-repo-positive",
+    "kind": "skill",
+    "query": "Scope this repo and tell me what I should audit first in this large codebase.",
+    "fixture_path": ".",
+    "expected_targets": ["scope-repo"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-start-audit-negative-threat-modeling",
+    "kind": "skill",
+    "query": "Create a STRIDE threat model for this application.",
+    "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
+    "expected_targets": ["threat-modeling"],
+    "must_not_targets": ["start-audit"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-review-pr-negative-git-summary",
+    "kind": "hybrid",
+    "query": "Summarize this git diff for release notes.",
+    "fixture_path": ".",
+    "expected_targets": [],
+    "must_not_targets": ["review-pr"],
+    "should_trigger": false,
+    "repeat": 3,
+    "min_trigger_rate": 0.0
+  },
+  {
+    "id": "task-verify-finding-negative-cpg-syntax",
+    "kind": "skill",
+    "query": "Explain Joern CPGQL source to sink syntax.",
+    "fixture_path": ".",
+    "expected_targets": ["cpg-analysis"],
+    "must_not_targets": ["verify-finding"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-package-evidence-negative-compliance",
+    "kind": "skill",
+    "query": "Map these security controls to SOC 2 evidence requirements.",
+    "fixture_path": ".",
+    "expected_targets": ["compliance-mapping"],
+    "must_not_targets": ["package-evidence"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "task-scope-repo-negative-dangerous-functions",
+    "kind": "skill",
+    "query": "List dangerous PHP functions and common sink patterns.",
+    "fixture_path": ".",
+    "expected_targets": ["dangerous-functions"],
+    "must_not_targets": ["scope-repo"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
   }
 ]
