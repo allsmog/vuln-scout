@@ -19,6 +19,7 @@ from artifact_utils import (
 from evidence_bundle import generate as generate_bundle, input_digest
 from html_report import generate as generate_html
 from markdown_report import generate as generate_markdown
+from migrate_artifact import migrate_to_1_2_0
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +53,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--fail-on",
         choices=list(SEVERITY_PRIORITY.keys()),
         help="Exit 2 when unsuppressed findings exist at or above this severity.",
+    )
+    parser.add_argument(
+        "--no-migrate",
+        action="store_true",
+        help="Do not auto-migrate older findings artifacts before rendering.",
     )
     return parser
 
@@ -107,7 +113,15 @@ def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    artifact = _attach_maturity(load_artifact(args.input))
+    artifact = load_artifact(args.input)
+    original_schema_version = artifact.get("schema_version")
+    if not args.no_migrate and original_schema_version != "1.2.0":
+        artifact = migrate_to_1_2_0(artifact)
+        print(
+            f"info: migrated artifact from {original_schema_version} to 1.2.0 in memory",
+            file=sys.stderr,
+        )
+    artifact = _attach_maturity(artifact)
     suppressions = parse_suppressions(args.suppressions)
     if suppressions:
         artifact = apply_suppressions(artifact, suppressions)
