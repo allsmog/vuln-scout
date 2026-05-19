@@ -1,431 +1,94 @@
-# Whitebox Pentest Plugin
+# VulnScout Plugin
 
-A comprehensive Claude Code plugin for whitebox penetration testing based on **HTB Academy** and **OffSec AWAE/OSWE**, tuned for balanced recall instead of sink-only overclaiming.
+VulnScout is a Claude Code plugin for whitebox security review. This directory is the plugin root used by `claude --plugin-dir ./vuln-scout/vuln-scout`.
 
-## Overview
+Manifest: `vuln-scout/.claude-plugin/plugin.json`
 
-This plugin guides security researchers through systematic source code analysis and vulnerability discovery using the proven 4-phase whitebox pentesting process:
+## Canonical Commands
 
-1. **Code Review** - Static analysis to identify dangerous functions and prioritize targets
-2. **Local Testing** - Dynamic analysis, debugging, and exploitation confirmation
-3. **Proof of Concept** - Full chain exploitation and exploit script development
-4. **Patching & Remediation** - Secure code fixes and reporting
-
-## Features
-
-### Skills (32 Auto-Activated)
-
-**Core Analysis:**
-- **dangerous-functions** - Database of security-sensitive functions by language
-- **vuln-patterns** - Common vulnerability patterns: SQLi, XSS, Command Injection, Path Traversal, Deserialization, SSTI
-- **data-flow-tracing** - Techniques for tracing user input from sources to sinks
-- **cpg-analysis** - Code Property Graph analysis with Joern/CPGQL for data flow verification
-- **exploit-techniques** - PoC development patterns and language-specific templates
-
-**OWASP Mapping:**
-- **security-misconfiguration** - Debug mode, default credentials, missing headers (OWASP A05)
-- **cryptographic-failures** - Weak algorithms, hardcoded secrets, insecure random (OWASP A02)
-- **logging-failures** - Log injection, insufficient logging, secrets in logs (A09)
-- **exception-handling** - XXE, error disclosure, and exception misuse review support
-- **sensitive-data-leakage** - Detect credentials/secrets flowing to logs, errors, or HTTP responses (CWE-532)
-- **business-logic** - Workflow vulnerabilities, trust boundary analysis, and state machine bugs (OWASP A01/A04)
-
-**Advanced:**
-- **threat-modeling** - STRIDE methodology, data flow diagramming, and systematic threat identification
-- **vulnerability-chains** - Multi-step attack chain detection (SSRF-to-SSTI-to-RCE)
-- **cross-component** - Cross-service vulnerability analysis for microservices
-- **cache-poisoning** - HTTP cache poisoning and web cache deception patterns
-- **postmessage-xss** - postMessage and DOM-based XSS patterns
-- **sandbox-escapes** - VM/sandbox escape techniques for Node.js, Python, Ruby
-- **framework-patterns** - Framework-specific vulnerability patterns (Next.js, Flask, Twig, etc.)
-- **nextjs-react** - Comprehensive Next.js/React security (Server Components, Server Actions, Route Handlers)
-
-**Infrastructure:**
-- **workspace-discovery** - Detect monorepo workspaces, packages, and module boundaries
-- **mixed-language-monorepos** - Cross-service security for polyglot codebases (Go + Python + TypeScript, etc.)
-- **owasp-2025** - Compatibility skill for VulnScout's OWASP category mapping and CWE references
-- **secret-scanning** - Detect hardcoded secrets, API keys, and credentials in code and git history
-
-**Extended Coverage:**
-- **ai-ml-attacks** - AI/ML attack surface: unsafe deserialization in ML pipelines, prompt injection, untrusted model loading
-- **owasp-api-top10** - OWASP API Security Top 10: BOLA, mass assignment, GraphQL/gRPC attacks
-- **cloud-native** - Cloud-native security: IMDS endpoints, K8s RBAC, serverless env leakage
-- **compliance-mapping** - Compliance framework mapping: PCI-DSS, HIPAA, SOC 2, NIST CSF
+| Command | Maturity | Key flags |
+|---|---|---|
+| `/vuln-scout:full-audit` | stable | `[path]`, `--quick`, `--since-commit`, `--scope`, `--suppressions`, `--fail-on`, `--no-semantic-analysis` |
+| `/vuln-scout:verify` | stable | `<file:line>`, `--type`, `--all-critical`, `--from`, `--json` |
+| `/vuln-scout:report` | stable | `[output_file]`, `--format md|json|sarif|html|bundle`, `--suppressions`, `--fail-on` |
+| `/vuln-scout:scope` | stable | `<path>`, `--list`, `--include`, `--exclude`, `--compress`, `--name` |
+| `/vuln-scout:diff` | stable | `<base-ref>`, `[head-ref]`, `--tools`, `--format`, `--fail-on-regression` |
 
 ### Commands (13 total)
 
-| Command | Description |
-|---------|-------------|
-| `/vuln-scout:full-audit [path]` | **Main entry point** - auto-scopes, threat models, audits high-risk modules. Supports `--since-commit`, `--diff-base`, `--suppressions`, `--fail-on`, `--verify-dynamic` |
-| `/vuln-scout:scope [path]` | Create focused scope for large codebases, list workspaces (`--list`) |
-| `/vuln-scout:threats` | Application understanding + STRIDE threat modeling |
-| `/vuln-scout:sinks [language]` | Search for dangerous functions, auto-discover patterns (`--discover`) |
-| `/vuln-scout:trace <function>` | Trace data flow to/from a specific function |
-| `/vuln-scout:scan [path]` | Security scan with Semgrep, CodeQL, Joern (`--tools`, `--since-commit`, `--format`, `--suppressions`, `--fail-on`) |
-| `/vuln-scout:verify <file:line>` | Verify findings using CPG data flow analysis |
-| `/vuln-scout:propagate <pattern>` | Find all instances of a vulnerability pattern |
-| `/vuln-scout:report [output_file]` | Render findings in Markdown, JSON, SARIF, or HTML |
-| `/vuln-scout:diff <base-ref> [head-ref]` | Compare security posture between two git refs and score regressions |
-| `/vuln-scout:auto-fix` | Generate patches for verified findings and optionally prepare a PR |
-| `/vuln-scout:create-rule` | Turn a confirmed vulnerability into a custom Semgrep detection rule |
-| `/vuln-scout:mutate` | Security mutation testing to expose scanner detection gaps |
+| Command | Maturity | Purpose |
+|---|---|---|
+| `/vuln-scout:scan` | beta | Run quick, deep, or audit scanner profiles |
+| `/vuln-scout:threats` | beta | Application understanding and STRIDE modeling |
+| `/vuln-scout:sinks` | beta | Search for dangerous functions and output sinks |
+| `/vuln-scout:trace` | beta | Trace source-to-sink evidence |
+| `/vuln-scout:propagate` | beta | Find related vulnerable patterns |
+| `/vuln-scout:create-rule` | experimental | Create custom Semgrep rules from confirmed patterns |
+| `/vuln-scout:mutate` | experimental | Mutation-test security controls |
+| `/vuln-scout:auto-fix` | experimental | Generate patches for verified findings |
 
-### Agents (8 Autonomous Analysts)
-- **app-mapper** - Application architecture and trust boundary mapping
-- **threat-modeler** - STRIDE analysis, data flow diagrams, and systematic threat identification
-- **code-reviewer** - Proactive static analysis for vulnerability identification
-- **local-tester** - Dynamic testing and exploitation guidance
-- **poc-developer** - Exploit script development assistance
-- **patch-advisor** - Remediation recommendations with specific code patches
-- **false-positive-verifier** - Evidence-based verification to eliminate false positives
-- **attack-researcher** - Autonomous attack vector exploration beyond pattern matching
+## Skills
 
-### Hooks (4 Background Automation)
-- **session-init** - Initialize pentest session and check for previous state
-- **large-codebase-check** - Suggests scoping before expensive operations on large codebases
-- **poc-safety-check** - Safety confirmation before PoC development begins
-- **suggest-next-phase** - Suggests next phase when code review findings are identified
+### Skills (32 Auto-Activated)
 
-## Installation
+| Group | Count | Purpose |
+|---|---:|---|
+| Task skills | 5 | Front-door workflows for audit, PR review, finding verification, evidence packaging, and scoping |
+| Knowledge skills | 27 | Vulnerability classes, frameworks, CPG analysis, threat modeling, compliance, and language-specific patterns |
+
+Task skills live in `skills/tasks/`:
+
+| Skill | Trigger intent |
+|---|---|
+| `start-audit` | Start a full security audit |
+| `review-pr` | Review a pull request or diff |
+| `verify-finding` | Confirm one finding |
+| `package-evidence` | Export reports and bundle artifacts |
+| `scope-repo` | Decide audit boundaries for large repos |
+
+## Agents
+
+| Agent | Role |
+|---|---|
+| `app-mapper` | Map architecture, entry points, trust boundaries, and high-risk modules |
+| `threat-modeler` | Build STRIDE threat models from app understanding |
+| `code-reviewer` | Review high-risk code paths and findings |
+| `false-positive-verifier` | Triage exploitability and controls |
+| `local-tester` | Run safe local verification |
+| `poc-developer` | Draft PoCs where explicitly safe |
+| `patch-advisor` | Recommend remediations |
+| `attack-researcher` | Research exploit paths and chaining |
+
+## Hooks
+
+| Hook | Purpose |
+|---|---|
+| `session-init` | Load audit state, `audit-plan.md`, and `review-ledger.json` |
+| `large-codebase-check` | Suggest scoping for large or monorepo targets |
+| `suggest-next-phase` | Recommend next audit command |
+| `poc-safety-check` | Gate risky dynamic validation |
+
+## Findings Contract
+
+The shared artifact contract is `references/findings.schema.json`. Reports and bundles consume `.claude/findings.json`, with schema v1.2.0 adding optional trust metadata and older artifacts auto-migrated by `scripts/report.py`.
+
+Audit orchestration also writes:
+
+- `.claude/audit-plan.md`
+- `.claude/review-ledger.json`
+
+## Local Development
 
 ```bash
-# Option 1: Symlink into your project's plugin directory
-mkdir -p .claude/plugins
-ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
-
-# Option 2: Copy into your project
-cp -r /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
+python3 scripts/check_consistency.py
+python3 scripts/validate_evals.py
+python3 scripts/first_run_smoke.py
 ```
 
-## Usage
+For repo-root execution:
 
-### Check Local Readiness
 ```bash
-python3 vuln-scout/scripts/doctor.py
-```
-
-Use `--strict` when the deterministic `quick` scan profile must be available.
-
-### Full Audit (Recommended Start)
-```bash
-/vuln-scout:full-audit /path/to/code
-```
-**One command does everything**: auto-detects codebase size, creates compressed architecture scope for large codebases, generates threat model, writes `.claude/audit-plan.md`, adversarially reviews the plan into `.claude/review-ledger.json`, identifies high-risk modules, and audits them with architecture context.
-
-### Quick Audit (Skip Threat Modeling)
-```bash
-/vuln-scout:full-audit --quick
-```
-
-### Focus on Recent Git Changes
-```bash
-/vuln-scout:full-audit --recent 30
-```
-Prioritizes modules with changes in the last 30 days.
-
-### Large Codebase Workflow
-```bash
-# List available workspaces/packages
-/vuln-scout:scope --list
-
-# Create compressed architecture scope (Go: 97% reduction, TS: 80%)
-/vuln-scout:scope . --compress --name architecture
-
-# Run threat modeling on compressed scope
-/vuln-scout:threats --scope architecture --save .claude/threat-model.md
-```
-
-### Quick Sink Search
-```bash
-/vuln-scout:sinks go
-/vuln-scout:sinks --discover  # Auto-discover logging patterns first
-```
-
-### Find Similar Patterns
-```bash
-/vuln-scout:propagate src/api/users.py:45
-```
-When you find one bug, find all similar instances.
-
-### Generate Report
-```bash
-/vuln-scout:report security-report.md
-```
-
-### Standalone Scan Profiles
-```bash
-# Stable: local deterministic Semgrep rules, no registry access
-python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick
-
-# Beta: uses Semgrep registry and installed analyzers where available
-python3 vuln-scout/scripts/scan_orchestrator.py . --profile deep
-
-# Beta: Claude-assisted review baseline plus available verification tools
-python3 vuln-scout/scripts/scan_orchestrator.py . --profile audit
-```
-
-Reports include `tool_status` so unavailable or failed external analyzers are visible.
-
-## Supported Languages
-
-| Language | Compression | Tools |
-|----------|-------------|-------|
-| Go | 95-97% | Semgrep, CodeQL, Joern |
-| TypeScript/JS | ~80% | Semgrep, CodeQL, Joern |
-| Python | 85-90% | Semgrep, CodeQL, Joern |
-| Java | 80-85% | Semgrep, CodeQL, Joern |
-| Rust | 85-90% | Semgrep, CodeQL |
-| PHP | 80-85% | Semgrep, Joern |
-| C#/.NET | 80-85% | Semgrep, CodeQL, Joern |
-| Ruby | 85-90% | Semgrep, CodeQL, Joern |
-| **Solidity** | 70-80% | Semgrep, Slither |
-
-See `skills/dangerous-functions/` for complete lists of security-sensitive functions per language.
-
-## Vulnerability Coverage
-
-- **Injection**: SQL, Command, LDAP, Template (SSTI)
-- **Authentication**: Bypass, Session attacks, JWT flaws
-- **Access Control**: IDOR, Privilege escalation
-- **Business Logic**: Workflow bypass, State manipulation, Trust boundary violations
-- **Cryptography**: Weak algorithms, Hardcoded secrets
-- **Deserialization**: Java, PHP, Python, .NET gadgets
-- **Race Conditions**: TOCTOU, Double-spend attacks
-- **Data Leakage**: Credentials in logs, Error exposure
-- **Smart Contracts**: Reentrancy, Flash loans, Oracle manipulation, Access control, Integer overflow
-
-## OWASP Top 10 Mapping
-
-Use official OWASP Top 10 names in external reports. The legacy `owasp-2025` skill name is kept only for internal compatibility.
-
-| Category | Coverage | Skills |
-|----------|----------|--------|
-| A01: Broken Access Control | ✅ Covered | `business-logic` |
-| A02: Cryptographic Failures | ✅ Covered | `cryptographic-failures` |
-| A03: Injection | ✅ Covered | `vuln-patterns`, `dangerous-functions` |
-| A04: Insecure Design | ✅ Covered | `business-logic`, `threat-modeling` |
-| A05: Security Misconfiguration | ✅ Covered | `security-misconfiguration` |
-| A06: Vulnerable and Outdated Components | ⏭️ Out of scope | *(dependency inventory)* |
-| A07: Identification and Authentication Failures | ✅ Covered | `vuln-patterns` |
-| A08: Software and Data Integrity Failures | ✅ Covered | `vuln-patterns` |
-| A09: Security Logging and Monitoring Failures | ✅ Covered | `logging-failures`, `sensitive-data-leakage` |
-| A10: Server-Side Request Forgery | ✅ Covered | `vuln-patterns`, `framework-patterns`, `vulnerability-chains` |
-
-**Coverage**: 9/10 categories. A06 stays out of scope because the plugin is focused on code review and exploitability in your repository.
-
-## Shared Findings Artifact
-
-All major workflows write `.claude/findings.json` using `references/findings.schema.json`.
-
-- `kind: "finding"` is reportable and counts toward severity totals.
-- `kind: "hotspot"` is a risky audit pivot and stays out of severity totals.
-- `stable_key` is the suppression key used by `.vuln-scout-ignore`.
-- `source_tool` and `evidence` are required for every entry.
-- `/vuln-scout:report --format sarif` converts the same artifact for CI consumers.
-
-Prompt-first orchestration adds:
-- `.claude/audit-plan.md` for persisted audit sequencing and verification intent
-- `.claude/review-ledger.json` for machine-readable `APPROVED` / `CHANGES_REQUESTED` / `UNRESOLVED` review rounds
-
-Developer checks:
-```bash
+python3 vuln-scout/scripts/check_consistency.py
 python3 vuln-scout/scripts/validate_evals.py
-python3 vuln-scout/scripts/run_prompt_evals.py
+python3 vuln-scout/scripts/first_run_smoke.py
 ```
-
-## Methodology
-
-This plugin implements methodologies from:
-- **HTB Academy** - Whitebox Pentesting Process
-- **OffSec AWAE** - Advanced Web Attacks and Exploitation (WEB-300)
-- **NahamSec** - Deep application understanding and business logic focus
-
-### Philosophy
-
-> "Understanding the application deeply will always beat automation."
-
-The plugin supports two complementary approaches:
-
-1. **Sink-First**: Traditional approach - find dangerous functions, trace data flow
-2. **Understanding-First**: Use `/vuln-scout:threats --quick` to map the application before hunting
-
-Both approaches work together. Understanding reveals business logic bugs that sink scanning misses.
-
-### Recommended Workflow
-
-**For any codebase (simple):**
-```bash
-/vuln-scout:full-audit
-```
-
-**For large codebases (manual control):**
-```bash
-1. /vuln-scout:scope --list           # See available modules
-2. /vuln-scout:scope . --compress     # Create architecture scope
-3. /vuln-scout:threats --scope arch   # Generate threat model
-4. /vuln-scout:sinks go               # Find dangerous functions
-5. /vuln-scout:trace <sink>           # Trace high-severity threats
-6. /vuln-scout:propagate <pattern>    # Find similar patterns
-7. /vuln-scout:report                 # Generate findings report
-```
-
-### The 4-Phase Process
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Code Review   │───▶│  Local Testing  │───▶│  Proof of       │───▶│  Patching &     │
-│                 │    │                 │    │  Concept        │    │  Remediation    │
-│ - Find sinks    │    │ - Debug locally │    │ - Full chain    │    │ - Code patches  │
-│ - Trace flow    │    │ - Confirm vuln  │    │ - Write exploit │    │ - Secure coding │
-│ - Prioritize    │    │ - Basic exploit │    │ - Test on target│    │ - Report        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-## Multi-Tool Scanning
-
-Combine multiple static analysis tools for better coverage:
-
-```bash
-/vuln-scout:scan /path/to/code --tools semgrep,joern
-/vuln-scout:scan contracts/ --tools semgrep  # Solidity
-```
-
-### Supported Tools
-
-| Tool | Install | Strengths |
-|------|---------|-----------|
-| Semgrep | `pip install semgrep` | Fast pattern matching, low false positives |
-| CodeQL | [GitHub releases](https://github.com/github/codeql-cli-binaries) | Deep taint tracking, language-specific |
-| Joern | `curl -L .../joern-install.sh \| bash` | CPG analysis, custom queries |
-| **Slither** | `pip install slither-analyzer` | **Solidity smart contracts** |
-
-### Output
-
-Findings from all tools are merged into a unified format with deduplication, hotspot handling, suppressions, and optional SARIF output.
-
-## Large Codebase Support
-
-The plugin handles large codebases (tested on 1.68M token Go monorepos) via language-aware compression.
-
-### Prerequisites
-
-```bash
-npm install -g repomix  # Required for scoping
-```
-
-### How It Works
-
-`/full-audit` automatically:
-1. Detects codebase size (token count)
-2. If >150k tokens, creates compressed architecture scope
-3. Uses language-aware compression:
-   - **Go**: Directory-based filtering → **95-97% reduction**
-   - **TypeScript/JS**: Tree-sitter → **~80% reduction**
-   - **Python**: Framework-aware (Django/Flask/FastAPI) → **85-90% reduction**
-   - **Java**: Spring pattern filtering → **80-85% reduction**
-   - **Rust**: Module-based filtering → **85-90% reduction**
-   - **PHP**: Laravel/Symfony patterns → **80-85% reduction**
-   - **C#/.NET**: ASP.NET Core patterns → **80-85% reduction**
-   - **Ruby**: Rails patterns → **85-90% reduction**
-   - **Solidity**: Contract filtering → **70-80% reduction**
-
-### Manual Workflow
-
-```bash
-# List workspaces/modules with size estimates
-/vuln-scout:scope --list
-
-# Create compressed architecture scope
-/vuln-scout:scope . --compress --name architecture
-
-# Create full scope for specific module
-/vuln-scout:scope query-service --name qs
-
-# Scan specific module
-/vuln-scout:scan --workspace api
-```
-
-### Supported Monorepo Types
-
-Auto-detects: npm/yarn/pnpm workspaces, Go modules (`go.work`), Maven/Gradle, Rust workspaces, Python packages.
-
-## Mixed-Language (Polyglot) Monorepo Support
-
-Modern architectures often use multiple languages: Go APIs, Python ML services, TypeScript frontends, Java data processors. This plugin handles these polyglot codebases with per-service analysis and cross-service security verification.
-
-### Polyglot Audit
-```bash
-/vuln-scout:full-audit ~/code/platform
-# Automatically detects mixed-language codebase
-```
-
-### What Polyglot Mode Does
-
-1. **Detects all languages** in the codebase
-2. **Maps services to languages** (identifies Go services, Python services, etc.)
-3. **Scopes each service** with language-appropriate compression
-4. **Generates cross-service threat model** with trust boundaries between services
-5. **Audits services in priority order** (auth first, then APIs, then ML)
-6. **Verifies cross-service vulnerabilities**:
-   - Auth token propagation gaps
-   - Input validation assumptions between services
-   - Error message information leakage
-   - Schema mismatches (proto/OpenAPI)
-
-### Cross-Service Security Patterns
-
-| Pattern | Risk | Detection |
-|---------|------|-----------|
-| **Gateway Bypass** | Attacker calls internal service directly | Service exposure checks |
-| **Auth Token Confusion** | Different services interpret tokens differently | Header/JWT pattern analysis |
-| **Serialization Mismatch** | Language differences in JSON/proto handling | Schema comparison |
-| **Type Coercion** | Go strict typing vs Python duck typing | Cross-boundary type flows |
-| **Error Leakage** | Python errors leak through Go gateway | Error handling patterns |
-
-### Manual Polyglot Workflow
-```bash
-# 1. Discover service architecture (auto-detects polyglot)
-/vuln-scout:scope --list
-
-# 2. Scope each service with language-appropriate strategy
-/vuln-scout:scope services/auth --language go --name auth
-/vuln-scout:scope services/ml --language python --name ml
-/vuln-scout:scope apps/web --language typescript --name web
-
-# 3. Generate cross-service threat model
-/vuln-scout:threats --save .claude/threat-model.md
-
-# 4. Audit each service
-/vuln-scout:full-audit --scope auth
-/vuln-scout:full-audit --scope ml
-
-# 5. Verify cross-service flows
-/vuln-scout:trace gateway:handleRequest -> ml:predict
-```
-
-### Example Output
-
-```
-╔═══════════════════════════════════════════════════════════════╗
-║                 POLYGLOT AUDIT COMPLETE                       ║
-╠═══════════════════════════════════════════════════════════════╣
-║  Languages: Go (450 files), Python (380), TypeScript (420)    ║
-║  Services audited: 5                                          ║
-║                                                                ║
-║  Findings by Service:                                         ║
-║  ├── auth-service (Go): 2 CRITICAL, 1 HIGH                   ║
-║  ├── api-gateway (Go): 1 HIGH, 2 MEDIUM                      ║
-║  ├── ml-pipeline (Python): 1 CRITICAL, 2 HIGH                ║
-║  ├── web-frontend (TypeScript): 3 MEDIUM                     ║
-║  └── data-processor (Java): 1 HIGH                           ║
-║                                                                ║
-║  Cross-Service Findings:                                      ║
-║  ├── Auth token not validated in ml-pipeline (CRITICAL)      ║
-║  ├── Error messages leak from Python to Gateway (MEDIUM)     ║
-║  └── No mTLS between gateway and auth-service (HIGH)         ║
-╚═══════════════════════════════════════════════════════════════╝
-```
-
-## License
-
-MIT
