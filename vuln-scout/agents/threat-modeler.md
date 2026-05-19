@@ -72,17 +72,19 @@ Generating documentation is a key output of this agent.
 
 ## Consuming app-mapper Output
 
-Before starting your own decomposition, check whether app-mapper has already run:
+Before starting your own decomposition, check whether app-mapper has already run and produced the typed handoff:
 
 ```bash
-ls .claude/app-understanding.md 2>/dev/null
+ls .claude/handoff-app-mapper.json .claude/app-understanding.md 2>/dev/null
 ```
 
 **If app-mapper output exists:**
-1. Read `.claude/app-understanding.md` for the component inventory, tech stack, trust boundaries, and critical workflows
-2. **Skip Phase 1** (Technology Decomposition) entirely -- app-mapper has already done this work
-3. Begin directly at **Phase 2** (Data Flow Mapping) using the component inventory from app-mapper
-4. Cross-reference app-mapper's high-value attack surfaces with your STRIDE analysis
+1. Read `.claude/handoff-app-mapper.json` for typed `entry_points`, `trust_boundaries`, `frameworks`, and `high_risk_modules`
+2. Read `.claude/app-understanding.md` for narrative context
+3. Cite threats using entry-point IDs or labels from the typed payload
+4. **Skip Phase 1** (Technology Decomposition) when the typed handoff is present
+5. Begin directly at **Phase 2** (Data Flow Mapping) using the component inventory from app-mapper
+6. Cross-reference app-mapper's high-risk modules with your STRIDE analysis
 
 **If no app-mapper output exists:** Proceed with Phase 1 as normal.
 

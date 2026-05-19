@@ -132,15 +132,27 @@ Business logic bugs require deep understanding - this agent provides that founda
    - Verification tokens
    - Password reset flows
 
+**Output Contract:**
+
+Produce `.claude/app-understanding.md`. The required section contract lives in `APP_UNDERSTANDING_REQUIRED_SECTIONS` in `vuln-scout/scripts/prompt_artifacts.py`; the `handoff-app-mapper` hook validates it and writes `.claude/handoff-app-mapper.json`.
+
+Required sections:
+
+- Application Overview
+- Trust Boundaries
+- Entry Points
+- Frameworks and Dependencies
+- High-Risk Modules
+
 **Output Format:**
 
 ```markdown
 # Application Understanding: [App Name]
 
-## Executive Summary
+## Application Overview
 [One paragraph describing what this application does and its purpose]
 
-## Technical Stack
+## Frameworks and Dependencies
 
 | Component | Technology |
 |-----------|------------|
@@ -172,6 +184,12 @@ Business logic bugs require deep understanding - this agent provides that founda
 - **Assumptions**: [what's trusted]
 - **Risk Level**: [High/Medium/Low]
 
+## Entry Points
+
+| Route / Interface | Handler | Auth | File |
+|-------------------|---------|------|------|
+| [method path] | [function] | [required/none] | [file:line] |
+
 ## Critical Workflows
 
 ### Workflow 1: [Name] (e.g., Checkout)
@@ -183,7 +201,7 @@ Business logic bugs require deep understanding - this agent provides that founda
 ### Workflow 2: [Name] (e.g., Password Reset)
 [Same structure]
 
-## High-Value Attack Surfaces
+## High-Risk Modules
 
 Based on this analysis, prioritize these areas:
 
