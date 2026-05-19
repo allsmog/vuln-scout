@@ -41,6 +41,30 @@ ROLE_COLORS = {
     "control": "#6b7280",
 }
 
+TRUST_COLORS = {
+    "provenance": {
+        "deterministic_tool": "#0e7490",
+        "llm_analysis": "#7c3aed",
+        "dynamic_verified": "#16a34a",
+        "human_review": "#0891b2",
+        "mixed": "#475569",
+    },
+    "fp_risk": {
+        "low": "#16a34a",
+        "medium": "#ca8a04",
+        "high": "#dc2626",
+        "unknown": "#6b7280",
+    },
+    "exploitability": {
+        "confirmed": "#dc2626",
+        "plausible": "#ea580c",
+        "blocked_by_control": "#16a34a",
+        "requires_auth": "#0e7490",
+        "unreachable": "#6b7280",
+        "unknown": "#9ca3af",
+    },
+}
+
 REMEDIATION_DEFAULTS = {
     "sql-injection": "Use parameterized queries or prepared statements. Never interpolate user input into SQL strings.",
     "command-injection": "Avoid shell execution. Use language-native libraries. If shell is necessary, use strict allowlisting.",
@@ -103,6 +127,7 @@ def generate(artifact: dict[str, Any], max_findings: int = 200) -> str:
         _tool_status_section(artifact.get("tool_status", {})),
         _tool_maturity_section(artifact),
         _chain_graph_section(chains, findings_by_id),
+        _trust_legend_section(),
         _findings_table(findings, truncated),
         _hotspots_section(hotspots),
         _coverage_section(coverage, artifact),
@@ -270,6 +295,11 @@ table.findings td { padding: 8px 12px; vertical-align: middle; }
 .verdict-badge {
   display: inline-block; padding: 1px 6px; border-radius: 3px;
   font-size: 11px; font-weight: 500; border: 1px solid;
+}
+.trust-cell { display: flex; gap: 4px; flex-wrap: wrap; min-width: 150px; }
+.trust-chip {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; color: #fff; line-height: 1.5;
 }
 
 /* Finding detail card */
@@ -552,6 +582,41 @@ def _tool_maturity_section(artifact: dict[str, Any]) -> str:
     )
 
 
+def _trust_values(finding: dict[str, Any]) -> tuple[str, str, str, str]:
+    trust = finding.get("trust_metadata") or {}
+    provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
+    fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))
+    exploitability = str(trust.get("exploitability_status", "unknown"))
+    reason = str(trust.get("confidence_reason") or (trust.get("false_positive_risk") or {}).get("reason") or "")
+    return provenance, fp_risk, exploitability, reason
+
+
+def _trust_chips(finding: dict[str, Any]) -> str:
+    provenance, fp_risk, exploitability, reason = _trust_values(finding)
+    title = html.escape(reason, quote=True)
+    chips = [
+        ("T", provenance, TRUST_COLORS["provenance"].get(provenance, "#6b7280")),
+        ("FP", fp_risk, TRUST_COLORS["fp_risk"].get(fp_risk, "#6b7280")),
+        ("X", exploitability, TRUST_COLORS["exploitability"].get(exploitability, "#9ca3af")),
+    ]
+    return '<span class="trust-cell">' + "".join(
+        f'<span class="trust-chip" title="{title}" style="background:{color};">'
+        f'{html.escape(label)}:{html.escape(value)}</span>'
+        for label, value, color in chips
+    ) + '</span>'
+
+
+def _trust_legend_section() -> str:
+    return """<div class="section">
+  <div class="section-title">Trust Legend</div>
+  <div class="coverage-grid">
+    <div class="cov-card"><h4>Trust</h4><p>Provenance from deterministic tools, LLM analysis, dynamic verification, human review, or mixed signals.</p></div>
+    <div class="cov-card"><h4>FP Risk</h4><p>False-positive likelihood inferred from verification, suppressions, semantic checks, and controls.</p></div>
+    <div class="cov-card"><h4>Exploitability</h4><p>Confirmed, plausible, blocked by control, requires auth, unreachable, or unknown.</p></div>
+  </div>
+</div>"""
+
+
 # ---------------------------------------------------------------------------
 # SVG donut chart
 # ---------------------------------------------------------------------------
@@ -795,6 +860,7 @@ def _findings_table(findings: list[dict[str, Any]], truncated: int) -> str:
         verdict_label, verdict_color = VERDICT_LABELS.get(verdict, ("Unknown", "#6b7280"))
         cvss = f.get("cvss_score")
         cvss_str = f"{cvss:.1f}" if cvss is not None else "-"
+        trust_html = _trust_chips(f)
         source_tool = html.escape(f.get("source_tool", "-"))
 
         row = (
@@ -806,6 +872,7 @@ def _findings_table(findings: list[dict[str, Any]], truncated: int) -> str:
             f'<td><span class="verdict-badge" style="color:{verdict_color};border-color:{verdict_color};">'
             f'{html.escape(verdict_label)}</span></td>'
             f'<td>{cvss_str}</td>'
+            f'<td>{trust_html}</td>'
             f'<td>{source_tool}</td>'
             f'</tr>'
         )
@@ -835,7 +902,8 @@ def _findings_table(findings: list[dict[str, Any]], truncated: int) -> str:
           <th data-sort="text" onclick="sortTable(2,'text')">File <span class="sort-arrow">&#x25B4;</span></th>
           <th data-sort="text" onclick="sortTable(3,'text')">Verdict <span class="sort-arrow">&#x25B4;</span></th>
           <th data-sort="number" onclick="sortTable(4,'number')">CVSS <span class="sort-arrow">&#x25B4;</span></th>
-          <th data-sort="text" onclick="sortTable(5,'text')">Tool <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(5,'text')">Trust <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(6,'text')">Tool <span class="sort-arrow">&#x25B4;</span></th>
         </tr>
       </thead>
       <tbody>
