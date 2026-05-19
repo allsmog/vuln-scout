@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from migrate_artifact import build_trust_metadata
+
 log = logging.getLogger("vuln-scout")
 
 # Patterns that indicate test/spec files
@@ -109,6 +111,7 @@ def auto_triage(
 
         if triage_reasons:
             finding["triage_reasons"] = triage_reasons
+            finding["trust_metadata"] = build_trust_metadata(finding)
             triaged += 1
 
     if triaged:

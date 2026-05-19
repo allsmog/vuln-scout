@@ -50,6 +50,7 @@ import knowledge_graph as kg_mod
 import poc_generator as poc_mod
 import cache_manager as cache_mod
 import api_spec_parser
+from migrate_artifact import build_trust_metadata
 
 log = logging.getLogger("vuln-scout")
 
@@ -520,6 +521,9 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
                    languages: dict[str, list[str]] | None = None,
                    entry_points: list | None = None,
                    chains: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    apply_verification_levels(findings)
+    for finding in findings:
+        finding["trust_metadata"] = build_trust_metadata(finding)
     source_tool = tools_used[0] if len(tools_used) == 1 else "multi"
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,

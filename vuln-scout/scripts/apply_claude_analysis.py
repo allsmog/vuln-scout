@@ -19,6 +19,7 @@ from artifact_utils import (
     apply_verification_levels,
     dump_json,
 )
+from migrate_artifact import build_trust_metadata
 
 
 def main() -> int:
@@ -71,6 +72,9 @@ def main() -> int:
     # Recalculate verification levels and summary
     findings = artifact.get("findings", [])
     apply_verification_levels(findings)
+    for finding in findings:
+        finding["trust_metadata"] = build_trust_metadata(finding)
+    artifact["schema_version"] = "1.2.0"
     artifact["summary"] = summarize_findings(findings)
 
     # Write updated artifact
