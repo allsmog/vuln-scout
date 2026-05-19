@@ -9,7 +9,7 @@
 Install it, run a deterministic quick scan, triage findings, suppress accepted risk, export a report, and fail CI on blocking issues.
 
 ```
-/whitebox-pentest:full-audit /path/to/code
+/vuln-scout:full-audit /path/to/code
 ```
 
 ---
@@ -106,10 +106,10 @@ ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 cp -r /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 
 # Run a full audit
-/whitebox-pentest:full-audit .
+/vuln-scout:full-audit .
 
 # Or start with threat modeling
-/whitebox-pentest:threats
+/vuln-scout:threats
 ```
 
 > **Note**: `.claude/plugins/` is relative to your project root. Claude Code automatically discovers plugins in this directory.
@@ -168,19 +168,19 @@ python3 vuln-scout/scripts/run_prompt_evals.py
 
 | Command | What it does |
 |---------|-------------|
-| `/whitebox-pentest:full-audit` | **One command does everything** -- scopes, threat models, audits, reports |
-| `/whitebox-pentest:threats` | STRIDE threat modeling with data flow diagrams |
-| `/whitebox-pentest:sinks` | Find dangerous functions across 9 languages |
-| `/whitebox-pentest:trace` | Follow data from source to sink |
-| `/whitebox-pentest:scan` | Run Semgrep, CodeQL, and Joern into a shared findings artifact |
-| `/whitebox-pentest:scope` | Handle large codebases with smart compression |
-| `/whitebox-pentest:propagate` | Found one bug? Find every instance of the pattern |
-| `/whitebox-pentest:verify` | CPG-based false positive elimination |
-| `/whitebox-pentest:report` | Render Markdown, JSON, SARIF, or HTML from the shared findings artifact |
-| `/whitebox-pentest:diff` | Compare security posture between git refs and highlight regressions |
-| `/whitebox-pentest:auto-fix` | Auto-remediate verified findings with generated patches |
-| `/whitebox-pentest:create-rule` | Generate a custom Semgrep rule from a confirmed vulnerability pattern |
-| `/whitebox-pentest:mutate` | Mutation-test security controls to find detection gaps |
+| `/vuln-scout:full-audit` | **One command does everything** -- scopes, threat models, audits, reports |
+| `/vuln-scout:threats` | STRIDE threat modeling with data flow diagrams |
+| `/vuln-scout:sinks` | Find dangerous functions across 9 languages |
+| `/vuln-scout:trace` | Follow data from source to sink |
+| `/vuln-scout:scan` | Run Semgrep, CodeQL, and Joern into a shared findings artifact |
+| `/vuln-scout:scope` | Handle large codebases with smart compression |
+| `/vuln-scout:propagate` | Found one bug? Find every instance of the pattern |
+| `/vuln-scout:verify` | CPG-based false positive elimination |
+| `/vuln-scout:report` | Render Markdown, JSON, SARIF, or HTML from the shared findings artifact |
+| `/vuln-scout:diff` | Compare security posture between git refs and highlight regressions |
+| `/vuln-scout:auto-fix` | Auto-remediate verified findings with generated patches |
+| `/vuln-scout:create-rule` | Generate a custom Semgrep rule from a confirmed vulnerability pattern |
+| `/vuln-scout:mutate` | Mutation-test security controls to find detection gaps |
 
 ### 8 Autonomous Agents
 
@@ -316,7 +316,7 @@ CI-focused flags:
 Got a Go gateway, Python ML service, and TypeScript frontend? VulnScout handles it:
 
 ```
-/whitebox-pentest:full-audit ~/code/platform
+/vuln-scout:full-audit ~/code/platform
 
 Polyglot detected: Go (450 files) + Python (380) + TypeScript (420)
 
@@ -398,16 +398,16 @@ Scope audits to recent changes or PR diffs for fast CI feedback:
 
 ```bash
 # Scan only files changed since a known base
-/whitebox-pentest:full-audit . --since-commit origin/main
+/vuln-scout:full-audit . --since-commit origin/main
 
 # Prioritize modules with recent changes
-/whitebox-pentest:full-audit . --recent 7
+/vuln-scout:full-audit . --recent 7
 
 # Headless PR gate: diff scan, JSON output, no prompts
-/whitebox-pentest:full-audit . --since-commit origin/main --quick --json --no-interactive
+/vuln-scout:full-audit . --since-commit origin/main --quick --json --no-interactive
 
 # Incremental Semgrep scan of changed files
-/whitebox-pentest:scan . --since-commit origin/main --format sarif --fail-on high
+/vuln-scout:scan . --since-commit origin/main --format sarif --fail-on high
 ```
 
 `--diff-base` remains as a backward-compatible alias for older automation.
@@ -418,7 +418,7 @@ Optionally execute generated PoC scripts to confirm exploitability:
 
 ```bash
 # Audit with dynamic PoC verification (requires explicit approval per PoC)
-/whitebox-pentest:full-audit . --verify-dynamic
+/vuln-scout:full-audit . --verify-dynamic
 ```
 
 Safety-first: PoCs run in `--dry-run` mode by default, require user confirmation, have a 30s timeout, and must include cleanup functions.

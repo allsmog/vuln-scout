@@ -20,7 +20,7 @@ Analyze the agent's output to determine findings severity:
 Based on the code review findings, here are the recommended next steps:
 
 1. **Phase 2: Local Testing** - Confirm the exploitability of the identified vulnerabilities
-   - Use `/whitebox-pentest:trace <function>` to trace data flow for high-priority findings
+   - Use `/vuln-scout:trace <function>` to trace data flow for high-priority findings
    - Set up a local test environment if not already configured
 
 2. **Priority Findings to Test:**
@@ -40,7 +40,7 @@ The code review identified potential security concerns but no critical vulnerabi
 
 **Recommendations:**
 - Review medium-severity findings for business logic impact
-- Consider running `/whitebox-pentest:sinks --discover` for additional coverage
+- Consider running `/vuln-scout:sinks --discover` for additional coverage
 - Document findings for the final report
 
 Would you like to:
@@ -58,7 +58,7 @@ No significant security vulnerabilities were identified in the reviewed code.
 **Recommendations:**
 - Verify the scope covered all entry points
 - Consider reviewing additional components
-- Run `/whitebox-pentest:sinks --discover` for sensitive data exposure
+- Run `/vuln-scout:sinks --discover` for sensitive data exposure
 
 Would you like to:
 - Expand the review to additional files?

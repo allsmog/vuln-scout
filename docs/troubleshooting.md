@@ -61,7 +61,7 @@ ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 Then run:
 
 ```text
-/whitebox-pentest:full-audit .
+/vuln-scout:full-audit .
 ```
 
 ## Package Contents

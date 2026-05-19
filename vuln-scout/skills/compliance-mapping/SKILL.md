@@ -105,7 +105,7 @@ Service Organization Control 2 for SaaS and cloud service providers.
 When generating a compliance-aware report, use the `--compliance` flag:
 
 ```
-/whitebox-pentest:report --compliance pci-dss,hipaa,soc2
+/vuln-scout:report --compliance pci-dss,hipaa,soc2
 ```
 
 This appends a Compliance Impact section to the report:
@@ -133,7 +133,7 @@ Ask the user which compliance frameworks apply to their organization.
 
 ### Step 2: Run Standard Audit
 ```
-/whitebox-pentest:full-audit .
+/vuln-scout:full-audit .
 ```
 
 ### Step 3: Map Findings to Requirements

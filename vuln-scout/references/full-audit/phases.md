@@ -1,6 +1,6 @@
 # Full Audit Phase Contract
 
-`/whitebox-pentest:full-audit` is a phase orchestrator, not a single scanner.
+`/vuln-scout:full-audit` is a phase orchestrator, not a single scanner.
 Keep these phases stable when editing the command prompt:
 
 1. Scope and architecture discovery.

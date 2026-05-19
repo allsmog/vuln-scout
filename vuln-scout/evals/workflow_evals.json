@@ -1,8 +1,8 @@
 [
   {
     "id": "full-audit-orchestration",
-    "command": "/whitebox-pentest:full-audit",
-    "prompt": "/whitebox-pentest:full-audit . --quick --no-interactive",
+    "command": "/vuln-scout:full-audit",
+    "prompt": "/vuln-scout:full-audit . --quick --no-interactive",
     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
     "expected_artifacts": [
       ".claude/audit-plan.md",
@@ -32,8 +32,8 @@
   },
   {
     "id": "threat-model-review-loop",
-    "command": "/whitebox-pentest:threats",
-    "prompt": "/whitebox-pentest:threats --save .claude/threat-model.md",
+    "command": "/vuln-scout:threats",
+    "prompt": "/vuln-scout:threats --save .claude/threat-model.md",
     "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
     "expected_artifacts": [
       ".claude/threat-model.md",
@@ -54,8 +54,8 @@
   },
   {
     "id": "verify-review-ledger",
-    "command": "/whitebox-pentest:verify",
-    "prompt": "/whitebox-pentest:verify app.py:4 --type ssrf --json",
+    "command": "/vuln-scout:verify",
+    "prompt": "/vuln-scout:verify app.py:4 --type ssrf --json",
     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
     "expected_artifacts": [
       ".claude/findings.json",

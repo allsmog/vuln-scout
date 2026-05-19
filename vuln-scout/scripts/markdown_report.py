@@ -350,7 +350,7 @@ def _next_actions(artifact: dict[str, Any]) -> str:
         actions.append(f"{index}. Use `--fail-on high` in CI until the {len(blocking)} high-or-higher finding(s) are resolved.")
         index += 1
     if unverified:
-        actions.append(f"{index}. Run `/whitebox-pentest:verify` or the `deep` profile on the {len(unverified)} unverified finding(s).")
+        actions.append(f"{index}. Run `/vuln-scout:verify` or the `deep` profile on the {len(unverified)} unverified finding(s).")
         index += 1
     actions.append(f"{index}. Re-render SARIF or HTML from the same `.claude/findings.json` artifact after triage.")
     return "\n".join(actions)

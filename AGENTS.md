@@ -17,11 +17,11 @@ vuln-scout/
 
 ## Key Commands
 
-- `/whitebox-pentest:full-audit` - Main entry point for security audits
-- `/whitebox-pentest:scope` - Handle large codebases with compression
-- `/whitebox-pentest:threats` - STRIDE threat modeling
-- `/whitebox-pentest:sinks` - Find dangerous functions
-- `/whitebox-pentest:verify` - CPG-based false positive verification
+- `/vuln-scout:full-audit` - Main entry point for security audits
+- `/vuln-scout:scope` - Handle large codebases with compression
+- `/vuln-scout:threats` - STRIDE threat modeling
+- `/vuln-scout:sinks` - Find dangerous functions
+- `/vuln-scout:verify` - CPG-based false positive verification
 
 ## Development Notes
 

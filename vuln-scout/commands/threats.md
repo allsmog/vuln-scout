@@ -56,10 +56,10 @@ For large codebases (>300k tokens), run architecture-level threat modeling on a 
 
 ```bash
 # First create compressed scope
-/whitebox-pentest:scope . --compress --name architecture
+/vuln-scout:scope . --compress --name architecture
 
 # Then run threats on the scope
-/whitebox-pentest:threats --scope architecture --save .claude/threat-model.md
+/vuln-scout:threats --scope architecture --save .claude/threat-model.md
 ```
 
 ### If `--scope` provided:
@@ -86,14 +86,14 @@ For large codebases (>300k tokens), run architecture-level threat modeling on a 
 
 ### Workflow Integration
 
-The threat model generated here is automatically loaded by `/whitebox-pentest:full-audit` when analyzing individual modules:
+The threat model generated here is automatically loaded by `/vuln-scout:full-audit` when analyzing individual modules:
 
 ```bash
 # Phase 1: Create system threat model (once)
-/whitebox-pentest:threats --scope architecture --save .claude/threat-model.md
+/vuln-scout:threats --scope architecture --save .claude/threat-model.md
 
 # Phase 2: Module audits reference this context
-/whitebox-pentest:full-audit --scope impl
+/vuln-scout:full-audit --scope impl
 # ^ Shows relevant threats from system model for this module
 ```
 
@@ -505,22 +505,22 @@ Based on threats identified, run these commands:
 
 ### Trace Critical Threats
 \`\`\`
-/whitebox-pentest:trace routes/login.ts:34
+/vuln-scout:trace routes/login.ts:34
 \`\`\`
 
 ### Search for Similar Patterns
 \`\`\`
-/whitebox-pentest:propagate "string concatenation in SQL query"
+/vuln-scout:propagate "string concatenation in SQL query"
 \`\`\`
 
 ### Sink Search by Category
 \`\`\`
-/whitebox-pentest:sinks javascript
+/vuln-scout:sinks javascript
 \`\`\`
 
 ### Generate Report
 \`\`\`
-/whitebox-pentest:report threat-findings.md
+/vuln-scout:report threat-findings.md
 \`\`\`
 ```
 
@@ -618,17 +618,17 @@ Based on threats identified, run these commands:
 
 ### Trace Threats
 \`\`\`
-/whitebox-pentest:trace [location]
+/vuln-scout:trace [location]
 \`\`\`
 
 ### Pattern Search
 \`\`\`
-/whitebox-pentest:propagate "[pattern]"
+/vuln-scout:propagate "[pattern]"
 \`\`\`
 
 ### Generate Report
 \`\`\`
-/whitebox-pentest:report findings.md
+/vuln-scout:report findings.md
 \`\`\`
 
 ---
@@ -651,7 +651,7 @@ Based on threats identified, run these commands:
 - Save output with `--save` for documentation
 - Threat model should be updated as codebase changes
 - Each threat should link to specific code locations
-- Use `/whitebox-pentest:verify` for CPG-based verification of findings
+- Use `/vuln-scout:verify` for CPG-based verification of findings
 
 ---
 

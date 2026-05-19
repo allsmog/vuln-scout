@@ -16,9 +16,9 @@ Compare security findings between two git refs. Shows new vulnerabilities introd
 ## Usage
 
 ```
-/whitebox-pentest:diff HEAD~5
-/whitebox-pentest:diff v1.0.0 v2.0.0
-/whitebox-pentest:diff main feature/auth --fail-on-regression
+/vuln-scout:diff HEAD~5
+/vuln-scout:diff v1.0.0 v2.0.0
+/vuln-scout:diff main feature/auth --fail-on-regression
 ```
 
 ## Flags

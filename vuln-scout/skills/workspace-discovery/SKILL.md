@@ -307,10 +307,10 @@ codemap --deps --json > deps.json
 ### Security Scanning
 ```bash
 # Scan specific workspace
-/whitebox-pentest:scan packages/api
+/vuln-scout:scan packages/api
 
 # Audit specific workspace
-/whitebox-pentest:full-audit packages/auth
+/vuln-scout:full-audit packages/auth
 ```
 
 ## Reference Files

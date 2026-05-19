@@ -17,7 +17,7 @@ Provide systematic methodology for identifying security threats through technolo
 ## When to Use
 
 Activate this skill when:
-- After running `/whitebox-pentest:threats --quick` to understand the app
+- After running `/vuln-scout:threats --quick` to understand the app
 - Before targeted sink searching (to prioritize what to look for)
 - When analyzing a new component or service
 - To create visual data flow diagrams

@@ -34,7 +34,7 @@ Saved scope files are context artifacts for Claude-side review and threat modeli
 When `--list` is provided, detect and display monorepo structure:
 
 ```bash
-/whitebox-pentest:scope --list
+/vuln-scout:scope --list
 ```
 
 **Detects:**
@@ -64,7 +64,7 @@ When `--list` is provided, detect and display monorepo structure:
 When `--list` is used, polyglot detection happens automatically. Mixed-language codebases are identified and services are mapped to their languages:
 
 ```bash
-/whitebox-pentest:scope --list
+/vuln-scout:scope --list
 ```
 
 ### Step 1: Detect All Languages
@@ -173,14 +173,14 @@ graph LR
 
 ```bash
 # Scope each service with language-appropriate strategy
-/whitebox-pentest:scope services/auth --language go --name auth
-/whitebox-pentest:scope services/gateway --language go --name gateway
-/whitebox-pentest:scope services/ml --language python --name ml
-/whitebox-pentest:scope apps/web --language typescript --name web
-/whitebox-pentest:scope blockchain/contracts --language solidity --name contracts
+/vuln-scout:scope services/auth --language go --name auth
+/vuln-scout:scope services/gateway --language go --name gateway
+/vuln-scout:scope services/ml --language python --name ml
+/vuln-scout:scope apps/web --language typescript --name web
+/vuln-scout:scope blockchain/contracts --language solidity --name contracts
 
 # Scope protocol definitions (always include)
-/whitebox-pentest:scope services/proto --name protocols
+/vuln-scout:scope services/proto --name protocols
 ```
 ```
 
@@ -204,13 +204,13 @@ Polyglot monorepo detected: Go (450 files) + Python (380) + TypeScript (420)
 | ml-pipeline | services/ml/ | Python | 120k | HIGH |
 
 ## Recommended Scope Commands
-/whitebox-pentest:scope services/auth --language go --name auth
-/whitebox-pentest:scope services/ml --language python --name ml
+/vuln-scout:scope services/auth --language go --name auth
+/vuln-scout:scope services/ml --language python --name ml
 ```
 
 To skip polyglot detection and force single-language mode:
 ```bash
-/whitebox-pentest:scope . --language go
+/vuln-scout:scope . --language go
 ```
 
 ## Prerequisites
@@ -330,18 +330,18 @@ done
 
 **Option 1: Scope high-risk sub-directories individually**
 \`\`\`
-/whitebox-pentest:scope [path]/handlers --name [name]-handlers
-/whitebox-pentest:scope [path]/api --name [name]-api
+/vuln-scout:scope [path]/handlers --name [name]-handlers
+/vuln-scout:scope [path]/api --name [name]-api
 \`\`\`
 
 **Option 2: Use compression (reduces ~80%)**
 \`\`\`
-/whitebox-pentest:scope [path] --compress --name [name]-structure
+/vuln-scout:scope [path] --compress --name [name]-structure
 \`\`\`
 
 **Option 3: Force full scope (not recommended)**
 \`\`\`
-/whitebox-pentest:scope [path] --force --name [name]
+/vuln-scout:scope [path] --force --name [name]
 \`\`\`
 ```
 
@@ -622,10 +622,10 @@ Repomix outputs:
 
 ### Next Steps
 - Review scope: `Read .claude/scope-[name].md`
-- Run security scan on the original module path: `/whitebox-pentest:scan [original-module-path]`
-- For monorepos, scan by workspace name from the repo root: `/whitebox-pentest:scan . --workspace [workspace-name]`
-- Find sinks: `/whitebox-pentest:sinks --scope [name]`
-- Full audit: `/whitebox-pentest:full-audit --scope [name]`
+- Run security scan on the original module path: `/vuln-scout:scan [original-module-path]`
+- For monorepos, scan by workspace name from the repo root: `/vuln-scout:scan . --workspace [workspace-name]`
+- Find sinks: `/vuln-scout:sinks --scope [name]`
+- Full audit: `/vuln-scout:full-audit --scope [name]`
 ```
 
 ## Default Exclusions
@@ -652,22 +652,22 @@ coverage/**
 
 ### Scope a specific package in a monorepo
 ```
-/whitebox-pentest:scope packages/api --name api
+/vuln-scout:scope packages/api --name api
 ```
 
 ### Scope only source files, exclude tests
 ```
-/whitebox-pentest:scope . --include "src/**" --exclude "**/*.test.ts,**/*.spec.ts" --name src-only
+/vuln-scout:scope . --include "src/**" --exclude "**/*.test.ts,**/*.spec.ts" --name src-only
 ```
 
 ### Get structure-only view (compressed)
 ```
-/whitebox-pentest:scope . --compress --name structure
+/vuln-scout:scope . --compress --name structure
 ```
 
 ### Scope multiple directories
 ```
-/whitebox-pentest:scope packages/api,packages/shared --name backend
+/vuln-scout:scope packages/api,packages/shared --name backend
 ```
 
 ## Architecture Scope (Compressed)
@@ -675,7 +675,7 @@ coverage/**
 For threat modeling and architecture analysis of large codebases, use compressed mode to create a system-wide view:
 
 ```bash
-/whitebox-pentest:scope . --compress --name architecture
+/vuln-scout:scope . --compress --name architecture
 ```
 
 ### What `--compress` Does
@@ -703,12 +703,12 @@ Compressed scopes enable the recommended two-phase approach for large codebases:
 
 ```bash
 # Phase 1: Architecture Context (run once)
-/whitebox-pentest:scope . --compress --name architecture
-/whitebox-pentest:threats --scope architecture --save .claude/threat-model.md
+/vuln-scout:scope . --compress --name architecture
+/vuln-scout:threats --scope architecture --save .claude/threat-model.md
 
 # Phase 2: Module Deep Dive (repeat per module)
-/whitebox-pentest:scope impl/ --name impl
-/whitebox-pentest:full-audit --scope impl
+/vuln-scout:scope impl/ --name impl
+/vuln-scout:full-audit --scope impl
 # ^ Module audit loads threat-model.md for context
 ```
 
@@ -728,18 +728,18 @@ For a 1.68M token codebase:
 
 ```bash
 # Step 1: Create compressed architecture scope
-/whitebox-pentest:scope ~/code/my-project --compress --name project-arch
+/vuln-scout:scope ~/code/my-project --compress --name project-arch
 # Result: ~336k tokens (manageable)
 
 # Step 2: Generate system threat model
-/whitebox-pentest:threats --scope project-arch --save .claude/threat-model.md
+/vuln-scout:threats --scope project-arch --save .claude/threat-model.md
 
 # Step 3: Scope high-risk module for deep dive
-/whitebox-pentest:scope ~/code/my-project/impl --name project-impl
+/vuln-scout:scope ~/code/my-project/impl --name project-impl
 # Result: ~159k tokens
 
 # Step 4: Audit module with architecture context
-/whitebox-pentest:full-audit --scope project-impl
+/vuln-scout:full-audit --scope project-impl
 # Shows relevant threats from system model
 ```
 
@@ -766,16 +766,16 @@ Scopes can be referenced by other commands:
 
 | Command | Usage |
 |---------|-------|
-| `/whitebox-pentest:full-audit` | `/whitebox-pentest:full-audit --scope api` |
-| `/whitebox-pentest:sinks` | `/whitebox-pentest:sinks --scope api` |
-| `/whitebox-pentest:threats` | `/whitebox-pentest:threats --scope api` |
+| `/vuln-scout:full-audit` | `/vuln-scout:full-audit --scope api` |
+| `/vuln-scout:sinks` | `/vuln-scout:sinks --scope api` |
+| `/vuln-scout:threats` | `/vuln-scout:threats --scope api` |
 
 Commands that support `--scope` will:
 1. Read the scope file from `.claude/scope-[name].md`
 2. Analyze the pre-processed content
 3. Reference original file paths from the scope
 
-`/whitebox-pentest:scan` is different: it scans the original source directory or workspace so Semgrep, CodeQL, and Joern still see real files on disk.
+`/vuln-scout:scan` is different: it scans the original source directory or workspace so Semgrep, CodeQL, and Joern still see real files on disk.
 
 ## Notes
 

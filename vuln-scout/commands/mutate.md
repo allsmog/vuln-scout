@@ -16,8 +16,8 @@ Identifies security controls (sanitizers, auth middleware, parameterized queries
 ## Usage
 
 ```
-/whitebox-pentest:mutate
-/whitebox-pentest:mutate src/ --dry-run
+/vuln-scout:mutate
+/vuln-scout:mutate src/ --dry-run
 ```
 
 ## Flags

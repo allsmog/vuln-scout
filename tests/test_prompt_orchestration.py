@@ -77,16 +77,16 @@ class EvalValidationTests(unittest.TestCase):
                 {
                     "id": "too-few",
                     "kind": "command",
-                    "query": "/whitebox-pentest:full-audit .",
-                    "expected_targets": ["/whitebox-pentest:full-audit"],
+                    "query": "/vuln-scout:full-audit .",
+                    "expected_targets": ["/vuln-scout:full-audit"],
                     "should_trigger": True,
                 }
             ]))
             (evals_dir / "workflow_evals.json").write_text(json.dumps([
                 {
                     "id": "workflow-1",
-                    "command": "/whitebox-pentest:full-audit",
-                    "prompt": "/whitebox-pentest:full-audit . --quick",
+                    "command": "/vuln-scout:full-audit",
+                    "prompt": "/vuln-scout:full-audit . --quick",
                     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
                     "expected_artifacts": [".claude/audit-plan.md"],
                     "required_sections": {".claude/audit-plan.md": ["Context"]},
@@ -94,8 +94,8 @@ class EvalValidationTests(unittest.TestCase):
                 },
                 {
                     "id": "workflow-2",
-                    "command": "/whitebox-pentest:threats",
-                    "prompt": "/whitebox-pentest:threats",
+                    "command": "/vuln-scout:threats",
+                    "prompt": "/vuln-scout:threats",
                     "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
                     "expected_artifacts": [".claude/threat-model.md"],
                     "required_sections": {".claude/threat-model.md": ["Executive Summary"]},
@@ -103,8 +103,8 @@ class EvalValidationTests(unittest.TestCase):
                 },
                 {
                     "id": "workflow-3",
-                    "command": "/whitebox-pentest:verify",
-                    "prompt": "/whitebox-pentest:verify app.py:4 --type ssrf",
+                    "command": "/vuln-scout:verify",
+                    "prompt": "/vuln-scout:verify app.py:4 --type ssrf",
                     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
                     "expected_artifacts": [".claude/review-ledger.json"],
                     "required_sections": {".claude/review-ledger.json": ["ignored"]},

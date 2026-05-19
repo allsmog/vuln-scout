@@ -2,10 +2,10 @@
   {
     "id": "full-audit-command-positive",
     "kind": "command",
-    "query": "/whitebox-pentest:full-audit . --quick --json --no-interactive",
+    "query": "/vuln-scout:full-audit . --quick --json --no-interactive",
     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
     "expected_targets": [
-      "/whitebox-pentest:full-audit",
+      "/vuln-scout:full-audit",
       "full-audit"
     ],
     "should_trigger": true,
@@ -15,10 +15,10 @@
   {
     "id": "threats-command-positive",
     "kind": "command",
-    "query": "/whitebox-pentest:threats --quick --save .claude/threat-model.md",
+    "query": "/vuln-scout:threats --quick --save .claude/threat-model.md",
     "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
     "expected_targets": [
-      "/whitebox-pentest:threats",
+      "/vuln-scout:threats",
       "threat-modeling"
     ],
     "should_trigger": true,
@@ -28,10 +28,10 @@
   {
     "id": "verify-command-positive",
     "kind": "command",
-    "query": "/whitebox-pentest:verify app.py:4 --type ssrf --json",
+    "query": "/vuln-scout:verify app.py:4 --type ssrf --json",
     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
     "expected_targets": [
-      "/whitebox-pentest:verify",
+      "/vuln-scout:verify",
       "false-positive-verifier"
     ],
     "should_trigger": true,

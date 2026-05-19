@@ -293,5 +293,5 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/findings_to_sarif.py" \
 ## Notes
 
 - `hotspot` is the default when the scan only proves a risky pattern or audit pivot.
-- Use `/whitebox-pentest:verify` to promote or dismiss `hotspot` and `unverified` entries.
+- Use `/vuln-scout:verify` to promote or dismiss `hotspot` and `unverified` entries.
 - Keep `source_tool` and `evidence` populated on every finding entry.

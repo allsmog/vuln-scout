@@ -19,10 +19,10 @@ Automatically generate and apply patches for verified security findings. Uses th
 ## Usage
 
 ```
-/whitebox-pentest:auto-fix --finding VSCOUT-0003
-/whitebox-pentest:auto-fix --all-verified --severity critical,high
-/whitebox-pentest:auto-fix --all-verified --dry-run
-/whitebox-pentest:auto-fix --all-verified --create-pr
+/vuln-scout:auto-fix --finding VSCOUT-0003
+/vuln-scout:auto-fix --all-verified --severity critical,high
+/vuln-scout:auto-fix --all-verified --dry-run
+/vuln-scout:auto-fix --all-verified --create-pr
 ```
 
 ## Flags

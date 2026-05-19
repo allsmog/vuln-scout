@@ -380,9 +380,9 @@ For each threat:
 
 ## Follow-Up Commands
 
-- `/whitebox-pentest:trace [location]`
-- `/whitebox-pentest:propagate "[pattern]"`
-- `/whitebox-pentest:sinks [language]`
+- `/vuln-scout:trace [location]`
+- `/vuln-scout:propagate "[pattern]"`
+- `/vuln-scout:sinks [language]`
 ```
 
 ---
@@ -398,7 +398,7 @@ For each threat:
 
 ## Integration
 
-- Run `/whitebox-pentest:threats --quick` first for app understanding
-- Feed findings into `/whitebox-pentest:trace` for deep analysis
-- Use `/whitebox-pentest:propagate` to find similar patterns
-- Generate final report with `/whitebox-pentest:report`
+- Run `/vuln-scout:threats --quick` first for app understanding
+- Feed findings into `/vuln-scout:trace` for deep analysis
+- Use `/vuln-scout:propagate` to find similar patterns
+- Generate final report with `/vuln-scout:report`

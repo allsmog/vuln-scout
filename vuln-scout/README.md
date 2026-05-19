@@ -56,19 +56,19 @@ This plugin guides security researchers through systematic source code analysis 
 
 | Command | Description |
 |---------|-------------|
-| `/whitebox-pentest:full-audit [path]` | **Main entry point** - auto-scopes, threat models, audits high-risk modules. Supports `--since-commit`, `--diff-base`, `--suppressions`, `--fail-on`, `--verify-dynamic` |
-| `/whitebox-pentest:scope [path]` | Create focused scope for large codebases, list workspaces (`--list`) |
-| `/whitebox-pentest:threats` | Application understanding + STRIDE threat modeling |
-| `/whitebox-pentest:sinks [language]` | Search for dangerous functions, auto-discover patterns (`--discover`) |
-| `/whitebox-pentest:trace <function>` | Trace data flow to/from a specific function |
-| `/whitebox-pentest:scan [path]` | Security scan with Semgrep, CodeQL, Joern (`--tools`, `--since-commit`, `--format`, `--suppressions`, `--fail-on`) |
-| `/whitebox-pentest:verify <file:line>` | Verify findings using CPG data flow analysis |
-| `/whitebox-pentest:propagate <pattern>` | Find all instances of a vulnerability pattern |
-| `/whitebox-pentest:report [output_file]` | Render findings in Markdown, JSON, SARIF, or HTML |
-| `/whitebox-pentest:diff <base-ref> [head-ref]` | Compare security posture between two git refs and score regressions |
-| `/whitebox-pentest:auto-fix` | Generate patches for verified findings and optionally prepare a PR |
-| `/whitebox-pentest:create-rule` | Turn a confirmed vulnerability into a custom Semgrep detection rule |
-| `/whitebox-pentest:mutate` | Security mutation testing to expose scanner detection gaps |
+| `/vuln-scout:full-audit [path]` | **Main entry point** - auto-scopes, threat models, audits high-risk modules. Supports `--since-commit`, `--diff-base`, `--suppressions`, `--fail-on`, `--verify-dynamic` |
+| `/vuln-scout:scope [path]` | Create focused scope for large codebases, list workspaces (`--list`) |
+| `/vuln-scout:threats` | Application understanding + STRIDE threat modeling |
+| `/vuln-scout:sinks [language]` | Search for dangerous functions, auto-discover patterns (`--discover`) |
+| `/vuln-scout:trace <function>` | Trace data flow to/from a specific function |
+| `/vuln-scout:scan [path]` | Security scan with Semgrep, CodeQL, Joern (`--tools`, `--since-commit`, `--format`, `--suppressions`, `--fail-on`) |
+| `/vuln-scout:verify <file:line>` | Verify findings using CPG data flow analysis |
+| `/vuln-scout:propagate <pattern>` | Find all instances of a vulnerability pattern |
+| `/vuln-scout:report [output_file]` | Render findings in Markdown, JSON, SARIF, or HTML |
+| `/vuln-scout:diff <base-ref> [head-ref]` | Compare security posture between two git refs and score regressions |
+| `/vuln-scout:auto-fix` | Generate patches for verified findings and optionally prepare a PR |
+| `/vuln-scout:create-rule` | Turn a confirmed vulnerability into a custom Semgrep detection rule |
+| `/vuln-scout:mutate` | Security mutation testing to expose scanner detection gaps |
 
 ### Agents (8 Autonomous Analysts)
 - **app-mapper** - Application architecture and trust boundary mapping
@@ -108,48 +108,48 @@ Use `--strict` when the deterministic `quick` scan profile must be available.
 
 ### Full Audit (Recommended Start)
 ```bash
-/whitebox-pentest:full-audit /path/to/code
+/vuln-scout:full-audit /path/to/code
 ```
 **One command does everything**: auto-detects codebase size, creates compressed architecture scope for large codebases, generates threat model, writes `.claude/audit-plan.md`, adversarially reviews the plan into `.claude/review-ledger.json`, identifies high-risk modules, and audits them with architecture context.
 
 ### Quick Audit (Skip Threat Modeling)
 ```bash
-/whitebox-pentest:full-audit --quick
+/vuln-scout:full-audit --quick
 ```
 
 ### Focus on Recent Git Changes
 ```bash
-/whitebox-pentest:full-audit --recent 30
+/vuln-scout:full-audit --recent 30
 ```
 Prioritizes modules with changes in the last 30 days.
 
 ### Large Codebase Workflow
 ```bash
 # List available workspaces/packages
-/whitebox-pentest:scope --list
+/vuln-scout:scope --list
 
 # Create compressed architecture scope (Go: 97% reduction, TS: 80%)
-/whitebox-pentest:scope . --compress --name architecture
+/vuln-scout:scope . --compress --name architecture
 
 # Run threat modeling on compressed scope
-/whitebox-pentest:threats --scope architecture --save .claude/threat-model.md
+/vuln-scout:threats --scope architecture --save .claude/threat-model.md
 ```
 
 ### Quick Sink Search
 ```bash
-/whitebox-pentest:sinks go
-/whitebox-pentest:sinks --discover  # Auto-discover logging patterns first
+/vuln-scout:sinks go
+/vuln-scout:sinks --discover  # Auto-discover logging patterns first
 ```
 
 ### Find Similar Patterns
 ```bash
-/whitebox-pentest:propagate src/api/users.py:45
+/vuln-scout:propagate src/api/users.py:45
 ```
 When you find one bug, find all similar instances.
 
 ### Generate Report
 ```bash
-/whitebox-pentest:report security-report.md
+/vuln-scout:report security-report.md
 ```
 
 ### Standalone Scan Profiles
@@ -221,7 +221,7 @@ All major workflows write `.claude/findings.json` using `references/findings.sch
 - `kind: "hotspot"` is a risky audit pivot and stays out of severity totals.
 - `stable_key` is the suppression key used by `.vuln-scout-ignore`.
 - `source_tool` and `evidence` are required for every entry.
-- `/whitebox-pentest:report --format sarif` converts the same artifact for CI consumers.
+- `/vuln-scout:report --format sarif` converts the same artifact for CI consumers.
 
 Prompt-first orchestration adds:
 - `.claude/audit-plan.md` for persisted audit sequencing and verification intent
@@ -247,7 +247,7 @@ This plugin implements methodologies from:
 The plugin supports two complementary approaches:
 
 1. **Sink-First**: Traditional approach - find dangerous functions, trace data flow
-2. **Understanding-First**: Use `/whitebox-pentest:threats --quick` to map the application before hunting
+2. **Understanding-First**: Use `/vuln-scout:threats --quick` to map the application before hunting
 
 Both approaches work together. Understanding reveals business logic bugs that sink scanning misses.
 
@@ -255,18 +255,18 @@ Both approaches work together. Understanding reveals business logic bugs that si
 
 **For any codebase (simple):**
 ```bash
-/whitebox-pentest:full-audit
+/vuln-scout:full-audit
 ```
 
 **For large codebases (manual control):**
 ```bash
-1. /whitebox-pentest:scope --list           # See available modules
-2. /whitebox-pentest:scope . --compress     # Create architecture scope
-3. /whitebox-pentest:threats --scope arch   # Generate threat model
-4. /whitebox-pentest:sinks go               # Find dangerous functions
-5. /whitebox-pentest:trace <sink>           # Trace high-severity threats
-6. /whitebox-pentest:propagate <pattern>    # Find similar patterns
-7. /whitebox-pentest:report                 # Generate findings report
+1. /vuln-scout:scope --list           # See available modules
+2. /vuln-scout:scope . --compress     # Create architecture scope
+3. /vuln-scout:threats --scope arch   # Generate threat model
+4. /vuln-scout:sinks go               # Find dangerous functions
+5. /vuln-scout:trace <sink>           # Trace high-severity threats
+6. /vuln-scout:propagate <pattern>    # Find similar patterns
+7. /vuln-scout:report                 # Generate findings report
 ```
 
 ### The 4-Phase Process
@@ -286,8 +286,8 @@ Both approaches work together. Understanding reveals business logic bugs that si
 Combine multiple static analysis tools for better coverage:
 
 ```bash
-/whitebox-pentest:scan /path/to/code --tools semgrep,joern
-/whitebox-pentest:scan contracts/ --tools semgrep  # Solidity
+/vuln-scout:scan /path/to/code --tools semgrep,joern
+/vuln-scout:scan contracts/ --tools semgrep  # Solidity
 ```
 
 ### Supported Tools
@@ -333,16 +333,16 @@ npm install -g repomix  # Required for scoping
 
 ```bash
 # List workspaces/modules with size estimates
-/whitebox-pentest:scope --list
+/vuln-scout:scope --list
 
 # Create compressed architecture scope
-/whitebox-pentest:scope . --compress --name architecture
+/vuln-scout:scope . --compress --name architecture
 
 # Create full scope for specific module
-/whitebox-pentest:scope query-service --name qs
+/vuln-scout:scope query-service --name qs
 
 # Scan specific module
-/whitebox-pentest:scan --workspace api
+/vuln-scout:scan --workspace api
 ```
 
 ### Supported Monorepo Types
@@ -355,7 +355,7 @@ Modern architectures often use multiple languages: Go APIs, Python ML services, 
 
 ### Polyglot Audit
 ```bash
-/whitebox-pentest:full-audit ~/code/platform
+/vuln-scout:full-audit ~/code/platform
 # Automatically detects mixed-language codebase
 ```
 
@@ -385,22 +385,22 @@ Modern architectures often use multiple languages: Go APIs, Python ML services, 
 ### Manual Polyglot Workflow
 ```bash
 # 1. Discover service architecture (auto-detects polyglot)
-/whitebox-pentest:scope --list
+/vuln-scout:scope --list
 
 # 2. Scope each service with language-appropriate strategy
-/whitebox-pentest:scope services/auth --language go --name auth
-/whitebox-pentest:scope services/ml --language python --name ml
-/whitebox-pentest:scope apps/web --language typescript --name web
+/vuln-scout:scope services/auth --language go --name auth
+/vuln-scout:scope services/ml --language python --name ml
+/vuln-scout:scope apps/web --language typescript --name web
 
 # 3. Generate cross-service threat model
-/whitebox-pentest:threats --save .claude/threat-model.md
+/vuln-scout:threats --save .claude/threat-model.md
 
 # 4. Audit each service
-/whitebox-pentest:full-audit --scope auth
-/whitebox-pentest:full-audit --scope ml
+/vuln-scout:full-audit --scope auth
+/vuln-scout:full-audit --scope ml
 
 # 5. Verify cross-service flows
-/whitebox-pentest:trace gateway:handleRequest -> ml:predict
+/vuln-scout:trace gateway:handleRequest -> ml:predict
 ```
 
 ### Example Output

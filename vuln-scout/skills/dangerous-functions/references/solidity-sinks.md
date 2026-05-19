@@ -482,5 +482,5 @@ pip install slither-analyzer
 slither contracts/
 
 # Or via plugin
-/whitebox-pentest:scan contracts/ --tools semgrep
+/vuln-scout:scan contracts/ --tools semgrep
 ```

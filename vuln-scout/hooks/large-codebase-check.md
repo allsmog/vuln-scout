@@ -36,8 +36,8 @@ Before executing the broad search:
    I detected [monorepo type] workspace configuration.
 
    Would you like me to:
-   1. Run /whitebox-pentest:scope --list to see available packages
-   2. Create a focused scope with /whitebox-pentest:scope
+   1. Run /vuln-scout:scope --list to see available packages
+   2. Create a focused scope with /vuln-scout:scope
    3. Continue with full codebase (may be slow)
    ```
 
@@ -78,12 +78,12 @@ After the first check, persist a flag so the hook does not repeat:
    "
    ```
 
-This file is ephemeral per audit session. `/whitebox-pentest:full-audit` resets it at the start of a new audit.
+This file is ephemeral per audit session. `/vuln-scout:full-audit` resets it at the start of a new audit.
 
 ## Output
 
 If proceeding with full codebase, add reminder:
 ```
 Proceeding with full codebase. For faster results next time, use:
-/whitebox-pentest:scope <path> --name <name>
+/vuln-scout:scope <path> --name <name>
 ```

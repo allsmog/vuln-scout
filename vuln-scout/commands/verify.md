@@ -25,19 +25,19 @@ Pattern matches and sink heuristics produce leads. Verification decides whether 
 ### Single target
 
 ```bash
-/whitebox-pentest:verify routes/login.ts:34 --type sql-injection
+/vuln-scout:verify routes/login.ts:34 --type sql-injection
 ```
 
 ### Batch verify critical findings
 
 ```bash
-/whitebox-pentest:verify --all-critical
+/vuln-scout:verify --all-critical
 ```
 
 ### Verify from prior results
 
 ```bash
-/whitebox-pentest:verify --from .claude/findings.json
+/vuln-scout:verify --from .claude/findings.json
 ```
 
 ## Language support

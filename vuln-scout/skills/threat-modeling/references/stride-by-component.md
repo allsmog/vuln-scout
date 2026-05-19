@@ -308,4 +308,4 @@ This reference provides STRIDE threat analysis templates for common application 
 2. Find corresponding section above
 3. Check each threat indicator in code
 4. Document findings with severity
-5. Use `/whitebox-pentest:trace` for high-severity findings
+5. Use `/vuln-scout:trace` for high-severity findings

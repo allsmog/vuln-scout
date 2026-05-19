@@ -406,7 +406,7 @@ graph TB
 
 ### Phase 0: Service Discovery
 ```bash
-/whitebox-pentest:scope . --list --polyglot
+/vuln-scout:scope . --list --polyglot
 ```
 
 Output:
@@ -434,32 +434,32 @@ Output:
 ### Phase 1: Per-Service Scoping
 ```bash
 # Scope each service with language-appropriate strategy
-/whitebox-pentest:scope services/auth --language go --name auth
-/whitebox-pentest:scope services/gateway --language go --name gateway
-/whitebox-pentest:scope services/ml --language python --name ml
-/whitebox-pentest:scope apps/web --language typescript --name web
+/vuln-scout:scope services/auth --language go --name auth
+/vuln-scout:scope services/gateway --language go --name gateway
+/vuln-scout:scope services/ml --language python --name ml
+/vuln-scout:scope apps/web --language typescript --name web
 
 # Scope protocol definitions
-/whitebox-pentest:scope services/proto --name protocols
+/vuln-scout:scope services/proto --name protocols
 ```
 
 ### Phase 2: Cross-Service Threat Model
 ```bash
-/whitebox-pentest:threats --polyglot --save .claude/threat-model-polyglot.md
+/vuln-scout:threats --polyglot --save .claude/threat-model-polyglot.md
 ```
 
 ### Phase 3: Per-Service Audit
 ```bash
 # Audit each service with its language-specific sinks
-/whitebox-pentest:full-audit --scope auth --language go
-/whitebox-pentest:full-audit --scope ml --language python
+/vuln-scout:full-audit --scope auth --language go
+/vuln-scout:full-audit --scope ml --language python
 ```
 
 ### Phase 4: Cross-Service Verification
 ```bash
 # Verify cross-service data flows
-/whitebox-pentest:trace gateway:handleRequest → ml:predict
-/whitebox-pentest:trace ml:publishEvent → processor:consumeEvent
+/vuln-scout:trace gateway:handleRequest → ml:predict
+/vuln-scout:trace ml:publishEvent → processor:consumeEvent
 ```
 
 ## Integration Points

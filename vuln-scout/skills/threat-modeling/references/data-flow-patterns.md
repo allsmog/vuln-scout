@@ -646,6 +646,6 @@ sequenceDiagram
 1. Identify data entry points (sources)
 2. Trace data to dangerous operations (sinks)
 3. Check for missing validation/sanitization
-4. Use `/whitebox-pentest:trace` for specific paths
+4. Use `/vuln-scout:trace` for specific paths
 5. Document findings in STRIDE format
 6. **For browser JS**: Check postMessage handlers for origin validation

@@ -31,13 +31,13 @@ Why pattern propagation works:
 ### Option 1: Describe the Pattern
 
 ```
-/whitebox-pentest:propagate "string concatenation in SQL queries"
+/vuln-scout:propagate "string concatenation in SQL queries"
 ```
 
 ### Option 2: Reference a Known Vulnerability
 
 ```
-/whitebox-pentest:propagate src/api/users.py:45
+/vuln-scout:propagate src/api/users.py:45
 ```
 
 The command will analyze the code at that location and extract the generalizable pattern.
@@ -275,8 +275,8 @@ cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
 ## Related Patterns to Search
 
 Based on this finding, also check:
-- `/whitebox-pentest:propagate "format string in SQL"`
-- `/whitebox-pentest:propagate "concatenation in database query"`
+- `/vuln-scout:propagate "format string in SQL"`
+- `/vuln-scout:propagate "concatenation in database query"`
 ```
 
 ---

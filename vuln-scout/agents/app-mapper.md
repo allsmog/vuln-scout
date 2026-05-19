@@ -201,10 +201,10 @@ Based on this analysis, prioritize these areas:
 
 ## Recommended Next Steps
 
-1. Run `/whitebox-pentest:sinks [language]` focused on [specific area]
-2. Run `/whitebox-pentest:trace` on [specific sensitive function]
+1. Run `/vuln-scout:sinks [language]` focused on [specific area]
+2. Run `/vuln-scout:trace` on [specific sensitive function]
 3. Manual business logic testing on [specific workflow]
-4. Run `/whitebox-pentest:full-audit --recent 30` to focus on new features
+4. Run `/vuln-scout:full-audit --recent 30` to focus on new features
 ```
 
 **Quality Standards:**

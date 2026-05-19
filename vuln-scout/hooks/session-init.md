@@ -34,8 +34,8 @@ Previous audit session detected:
 - **Diff scope**: [If diff_base is set: "Changes since <ref> (<N> files)". Otherwise omit.]
 
 **Quick Actions:**
-- `/whitebox-pentest:full-audit` - Continue from current phase
-- `/whitebox-pentest:report` - Generate report of findings so far
+- `/vuln-scout:full-audit` - Continue from current phase
+- `/vuln-scout:report` - Generate report of findings so far
 - Type "reset audit" to start fresh
 
 **Pending Items:**
@@ -64,12 +64,12 @@ ls package.json pnpm-workspace.yaml turbo.json nx.json go.work Cargo.toml pom.xm
    Monorepo type: [npm workspaces / turborepo / go / maven / etc.]
 
 **Recommended Workflow for Large Codebases:**
-1. `/whitebox-pentest:scope --list` - List available packages
-2. `/whitebox-pentest:scope <path>` - Create focused analysis scope
-3. `/whitebox-pentest:full-audit --scope <name>` - Audit specific package
+1. `/vuln-scout:scope --list` - List available packages
+2. `/vuln-scout:scope <path>` - Create focused analysis scope
+3. `/vuln-scout:full-audit --scope <name>` - Audit specific package
 
 **Or start full audit**:
-- `/whitebox-pentest:full-audit` - Audit entire codebase
+- `/vuln-scout:full-audit` - Audit entire codebase
 ```
 
 **Check for existing scope files**:
@@ -83,7 +83,7 @@ If scopes exist, show them:
 - scope-api.md
 - scope-worker.md
 
-Use with: `/whitebox-pentest:full-audit --scope api`
+Use with: `/vuln-scout:full-audit --scope api`
 ```
 
 **Standard welcome (small codebase)**:
@@ -91,15 +91,15 @@ Use with: `/whitebox-pentest:full-audit --scope api`
 🔒 **Whitebox Pentest Plugin Ready**
 
 Available commands:
-- `/whitebox-pentest:full-audit` - Start guided security audit
-- `/whitebox-pentest:sinks [language]` - Quick dangerous function search
-- `/whitebox-pentest:trace <function>` - Trace data flow to sink
-- `/whitebox-pentest:sinks --discover` - Find logging/credential patterns
+- `/vuln-scout:full-audit` - Start guided security audit
+- `/vuln-scout:sinks [language]` - Quick dangerous function search
+- `/vuln-scout:trace <function>` - Trace data flow to sink
+- `/vuln-scout:sinks --discover` - Find logging/credential patterns
 
 **Methodology:** HTB Academy / OffSec AWAE 4-Phase Process
 1. Code Review → 2. Local Testing → 3. PoC Development → 4. Patching
 
-Type `/whitebox-pentest:full-audit` to begin a structured security assessment.
+Type `/vuln-scout:full-audit` to begin a structured security assessment.
 ```
 
 ## State File Format

@@ -17,9 +17,9 @@ Generate a Semgrep YAML rule from a confirmed vulnerability pattern. The rule ca
 ## Usage
 
 ```
-/whitebox-pentest:create-rule VSCOUT-0003
-/whitebox-pentest:create-rule src/api/users.ts:42
-/whitebox-pentest:create-rule VSCOUT-0003 --output .semgrep/rules/ --test
+/vuln-scout:create-rule VSCOUT-0003
+/vuln-scout:create-rule src/api/users.ts:42
+/vuln-scout:create-rule VSCOUT-0003 --output .semgrep/rules/ --test
 ```
 
 ## Flags

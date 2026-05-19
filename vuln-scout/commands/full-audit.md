@@ -18,7 +18,7 @@ allowed-tools:
 **One command to audit any codebase, regardless of size.**
 
 ```
-/whitebox-pentest:full-audit /path/to/code
+/vuln-scout:full-audit /path/to/code
 ```
 
 ## Shared Prompt Fragments
@@ -100,40 +100,40 @@ This command automatically:
 
 ### Full Audit (Recommended)
 ```
-/whitebox-pentest:full-audit /path/to/code
+/vuln-scout:full-audit /path/to/code
 ```
 
 ### Quick Audit (Skip threat modeling)
 ```
-/whitebox-pentest:full-audit /path/to/code --quick
+/vuln-scout:full-audit /path/to/code --quick
 ```
 
 ### Audit Top 5 Modules (default is 3)
 ```
-/whitebox-pentest:full-audit /path/to/code --top 5
+/vuln-scout:full-audit /path/to/code --top 5
 ```
 
 ### Focus on Recent Changes (git-aware)
 ```
-/whitebox-pentest:full-audit /path/to/code --recent 30
+/vuln-scout:full-audit /path/to/code --recent 30
 ```
 Prioritizes modules with changes in the last 30 days. New code has higher vulnerability density.
 
 ### Scan Only Commit Diff (CI-friendly)
 ```
-/whitebox-pentest:full-audit . --since-commit abc1234
+/vuln-scout:full-audit . --since-commit abc1234
 ```
 Deep-dive scoped to files changed since the commit. Threat model still covers full codebase for context.
 
 ### PR Scan with Quick Mode
 ```
-/whitebox-pentest:full-audit . --since-commit abc1234 --quick --json --no-interactive
+/vuln-scout:full-audit . --since-commit abc1234 --quick --json --no-interactive
 ```
 Fully headless PR gate: scan diff, emit JSON, no prompts.
 
 ### Specify Language (auto-detected if omitted)
 ```
-/whitebox-pentest:full-audit /path/to/code --language go
+/vuln-scout:full-audit /path/to/code --language go
 ```
 
 Saved scope files are context inputs for Claude-side reasoning and threat modeling. When this workflow invokes `scan_orchestrator.py`, it still passes a real source directory or workspace path to the static tools rather than scanning `.claude/scope-*.md` directly.
@@ -689,7 +689,7 @@ Using the compressed architecture scope:
 
 **Output**: `.claude/threat-model.md`
 
-Before creating `.claude/audit-plan.md`, adversarially review the threat model using the same 3-angle loop defined in `/whitebox-pentest:threats`:
+Before creating `.claude/audit-plan.md`, adversarially review the threat model using the same 3-angle loop defined in `/vuln-scout:threats`:
 - missed threats
 - STRIDE / trust-boundary correctness
 - false positives / bad prioritization
@@ -1260,7 +1260,7 @@ npx repomix --version  # Required for scoping
 Skip threat modeling for faster results:
 
 ```
-/whitebox-pentest:full-audit /path/to/code --quick
+/vuln-scout:full-audit /path/to/code --quick
 ```
 
 **Quick mode**:
@@ -1585,7 +1585,7 @@ jobs:
 
       - name: Run full audit
         run: |
-          claude-code "/whitebox-pentest:full-audit . --quick"
+          claude-code "/vuln-scout:full-audit . --quick"
 
       - name: Check for critical findings
         run: |
@@ -1608,19 +1608,19 @@ jobs:
 ### Focus on Specific Vulnerability Types
 
 ```
-/whitebox-pentest:full-audit . --focus sql-injection,command-injection
+/vuln-scout:full-audit . --focus sql-injection,command-injection
 ```
 
 ### Exclude Directories
 
 ```
-/whitebox-pentest:full-audit . --exclude node_modules,vendor,test
+/vuln-scout:full-audit . --exclude node_modules,vendor,test
 ```
 
 ### Set Severity Threshold
 
 ```
-/whitebox-pentest:full-audit . --min-severity high
+/vuln-scout:full-audit . --min-severity high
 ```
 
 ---
@@ -1629,27 +1629,27 @@ jobs:
 
 ### Audit a Go monorepo
 ```bash
-/whitebox-pentest:full-audit ~/code/my-go-project
+/vuln-scout:full-audit ~/code/my-go-project
 # Auto-detects Go, uses directory-based compression
 # 1.68M tokens → 47k architecture scope (97% reduction)
 ```
 
 ### Audit a TypeScript project
 ```bash
-/whitebox-pentest:full-audit ~/code/my-app
+/vuln-scout:full-audit ~/code/my-app
 # Auto-detects TS, uses Tree-sitter compression
 # ~80% token reduction
 ```
 
 ### Audit with more modules
 ```bash
-/whitebox-pentest:full-audit --top 5
+/vuln-scout:full-audit --top 5
 # Audits top 5 riskiest modules instead of default 3
 ```
 
 ### Audit a polyglot monorepo (Go + Python + TypeScript)
 ```bash
-/whitebox-pentest:full-audit ~/code/platform
+/vuln-scout:full-audit ~/code/platform
 # Automatically detects mixed-language codebase
 # Scopes each service with language-appropriate compression
 # Generates cross-service threat model
@@ -1658,14 +1658,14 @@ jobs:
 
 ### Force single-language mode (skip polyglot detection)
 ```bash
-/whitebox-pentest:full-audit ~/code/platform --language go
+/vuln-scout:full-audit ~/code/platform --language go
 # Forces Go-specific analysis only
 # Useful when you want to focus on just one language/service type
 ```
 
 ### Machine-readable JSON output (for orchestrators/CI)
 ```bash
-/whitebox-pentest:full-audit . --json
+/vuln-scout:full-audit . --json
 # Suppresses human-formatted progress boxes
 # Emits structured JSON to stdout on completion
 # Always writes .claude/findings.json regardless of this flag
@@ -1673,11 +1673,11 @@ jobs:
 
 ### Non-interactive mode (for orchestrator agents)
 ```bash
-/whitebox-pentest:full-audit . --no-interactive
+/vuln-scout:full-audit . --no-interactive
 # Disables all AskUserQuestion calls - never stalls waiting for input
 # Uses sensible defaults for all ambiguous decisions
 # Combine with --json for fully headless operation:
-/whitebox-pentest:full-audit . --json --no-interactive
+/vuln-scout:full-audit . --json --no-interactive
 ```
 
 ---

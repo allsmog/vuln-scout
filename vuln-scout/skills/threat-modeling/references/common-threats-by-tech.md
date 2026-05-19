@@ -410,8 +410,8 @@ grep -rniE "function.*(address.*)" --include="*.sol" -A 3 | grep -v "require.*!=
 
 ## Usage
 
-1. Identify technology stack from `/whitebox-pentest:threats --quick`
+1. Identify technology stack from `/vuln-scout:threats --quick`
 2. Find corresponding section above
 3. Search codebase using provided patterns
 4. Prioritize by severity
-5. Trace findings with `/whitebox-pentest:trace`
+5. Trace findings with `/vuln-scout:trace`
