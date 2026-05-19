@@ -33,13 +33,13 @@ jobs:
         run: pytest tests/ -v
 
       - name: Run consistency check
-        run: python3 whitebox-pentest/scripts/check_consistency.py
+        run: python3 vuln-scout/scripts/check_consistency.py
 
       - name: Validate doctor output
-        run: python3 whitebox-pentest/scripts/doctor.py --json
+        run: python3 vuln-scout/scripts/doctor.py --json
 
       - name: Validate prompt eval definitions
-        run: python3 whitebox-pentest/scripts/validate_evals.py
+        run: python3 vuln-scout/scripts/validate_evals.py
 
       - name: Validate Kuzushi module import
         run: node -e "import('./kuzushi-module.js').then(() => console.log('import ok'))"
@@ -49,6 +49,6 @@ jobs:
 
       - name: Smoke-test report renderers
         run: |
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format sarif -o /tmp/vuln-scout-report.sarif
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format md -o /tmp/vuln-scout-report.md
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format html -o /tmp/vuln-scout-report.html
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format sarif -o /tmp/vuln-scout-report.sarif
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format md -o /tmp/vuln-scout-report.md
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format html -o /tmp/vuln-scout-report.html

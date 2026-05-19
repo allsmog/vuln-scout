@@ -8,7 +8,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const COMMANDS_DIR = join(__dirname, "whitebox-pentest", "commands");
+const COMMANDS_DIR = join(__dirname, "vuln-scout", "commands");
 const PACKAGE_JSON = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
 const PACKAGE_VERSION = PACKAGE_JSON.version;
 

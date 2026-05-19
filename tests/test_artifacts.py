@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
 
 

@@ -3,23 +3,23 @@
 ## First Checks
 
 ```bash
-python3 whitebox-pentest/scripts/doctor.py
-python3 whitebox-pentest/scripts/doctor.py --json
-python3 whitebox-pentest/scripts/doctor.py --versions
+python3 vuln-scout/scripts/doctor.py
+python3 vuln-scout/scripts/doctor.py --json
+python3 vuln-scout/scripts/doctor.py --versions
 ```
 
 Use `--strict` in CI when the `quick` profile must be available.
 
 ## Semgrep Network Errors
 
-The default `quick` profile uses `whitebox-pentest/rules/vuln-scout-local.yml`
+The default `quick` profile uses `vuln-scout/rules/vuln-scout-local.yml`
 and does not require Semgrep registry access.
 
 If `--profile deep` or `--rules auto` fails with registry/network errors:
 
 ```bash
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --rules whitebox-pentest/rules/vuln-scout-local.yml
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick
+python3 vuln-scout/scripts/scan_orchestrator.py . --rules vuln-scout/rules/vuln-scout-local.yml
 ```
 
 Run `doctor.py --check-network` only when you want to diagnose registry reachability.
@@ -32,7 +32,7 @@ Checks:
 
 ```bash
 joern --help
-python3 whitebox-pentest/scripts/create_cpg.py /path/to/code
+python3 vuln-scout/scripts/create_cpg.py /path/to/code
 ```
 
 If Joern is missing, scans still run with available tools and reports list Joern
@@ -45,7 +45,7 @@ CodeQL is optional and project-build dependent. If database creation fails, use
 
 ```bash
 codeql version
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile deep
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile deep
 ```
 
 ## Claude Plugin Installation
@@ -55,7 +55,7 @@ reviewed.
 
 ```bash
 mkdir -p .claude/plugins
-ln -s /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
+ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 ```
 
 Then run:

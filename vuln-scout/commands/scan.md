@@ -44,7 +44,7 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 All tool branches must write the same artifact shape to `.claude/findings.json`.
 
 Source of truth:
-- `whitebox-pentest/references/findings.schema.json`
+- `vuln-scout/references/findings.schema.json`
 
 Required top-level fields:
 - `schema_version`
@@ -113,7 +113,7 @@ __pycache__
 ### Semgrep branch
 
 ```bash
-semgrep --config "${RULESET:-whitebox-pentest/rules/vuln-scout-local.yml}" --json [targets...]
+semgrep --config "${RULESET:-vuln-scout/rules/vuln-scout-local.yml}" --json [targets...]
 ```
 
 Classify:
@@ -176,7 +176,7 @@ Severity summary rules:
 
 ## Step 5: Write `.claude/findings.json`
 
-Use the shared schema in `whitebox-pentest/references/findings.schema.json`.
+Use the shared schema in `vuln-scout/references/findings.schema.json`.
 
 Example:
 

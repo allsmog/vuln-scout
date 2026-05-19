@@ -13,7 +13,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PLUGIN_ROOT = ROOT / "whitebox-pentest"
+PLUGIN_ROOT = ROOT / "vuln-scout"
 EVALS_DIR = PLUGIN_ROOT / "evals"
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
@@ -39,7 +39,7 @@ def _prepare_workspace(fixture_path: str, plugin_enabled: bool) -> tuple[tempfil
     if plugin_enabled:
         plugins_dir = workspace_root / ".claude" / "plugins"
         plugins_dir.mkdir(parents=True, exist_ok=True)
-        target = plugins_dir / "whitebox-pentest"
+        target = plugins_dir / "vuln-scout"
         target.symlink_to(PLUGIN_ROOT)
 
     return tempdir, workspace_root

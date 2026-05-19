@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/allsmog/vuln-scout/blob/main/whitebox-pentest/references/findings.schema.json",
+  "$id": "https://github.com/allsmog/vuln-scout/blob/main/vuln-scout/references/findings.schema.json",
   "title": "VulnScout Findings Artifact",
   "type": "object",
   "required": [

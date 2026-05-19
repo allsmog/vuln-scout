@@ -139,7 +139,7 @@ Persist each verification review round in `.claude/review-ledger.json`:
 
 ## Step 5: Update `.claude/findings.json`
 
-Use `whitebox-pentest/references/findings.schema.json` as the contract.
+Use `vuln-scout/references/findings.schema.json` as the contract.
 
 Verification updates must preserve:
 - `schema_version`

@@ -8,7 +8,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_EVALS_DIR = ROOT / "whitebox-pentest" / "evals"
+DEFAULT_EVALS_DIR = ROOT / "vuln-scout" / "evals"
 VALID_TRIGGER_KINDS = {"command", "skill", "hybrid"}
 VALID_WORKFLOW_COMMANDS = {
     "/whitebox-pentest:full-audit",

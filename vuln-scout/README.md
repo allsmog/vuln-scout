@@ -91,17 +91,17 @@ This plugin guides security researchers through systematic source code analysis 
 ```bash
 # Option 1: Symlink into your project's plugin directory
 mkdir -p .claude/plugins
-ln -s /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
+ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 
 # Option 2: Copy into your project
-cp -r /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
+cp -r /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 ```
 
 ## Usage
 
 ### Check Local Readiness
 ```bash
-python3 whitebox-pentest/scripts/doctor.py
+python3 vuln-scout/scripts/doctor.py
 ```
 
 Use `--strict` when the deterministic `quick` scan profile must be available.
@@ -155,13 +155,13 @@ When you find one bug, find all similar instances.
 ### Standalone Scan Profiles
 ```bash
 # Stable: local deterministic Semgrep rules, no registry access
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick
 
 # Beta: uses Semgrep registry and installed analyzers where available
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile deep
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile deep
 
 # Beta: Claude-assisted review baseline plus available verification tools
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile audit
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile audit
 ```
 
 Reports include `tool_status` so unavailable or failed external analyzers are visible.
@@ -229,8 +229,8 @@ Prompt-first orchestration adds:
 
 Developer checks:
 ```bash
-python3 whitebox-pentest/scripts/validate_evals.py
-python3 whitebox-pentest/scripts/run_prompt_evals.py
+python3 vuln-scout/scripts/validate_evals.py
+python3 vuln-scout/scripts/run_prompt_evals.py
 ```
 
 ## Methodology

@@ -26,9 +26,9 @@ allowed-tools:
 Before executing this command, read these canonical fragments and treat them as
 the source of truth for phase order, artifacts, and safety defaults:
 
-- `whitebox-pentest/references/full-audit/phases.md`
-- `whitebox-pentest/references/full-audit/artifact-contract.md`
-- `whitebox-pentest/references/full-audit/safety.md`
+- `vuln-scout/references/full-audit/phases.md`
+- `vuln-scout/references/full-audit/artifact-contract.md`
+- `vuln-scout/references/full-audit/safety.md`
 
 The detailed body below is compatibility guidance for Claude Code command
 execution. If it conflicts with a shared fragment, follow the shared fragment.
@@ -1099,7 +1099,7 @@ After generating the markdown report, you MUST also create a structured JSON fil
 
 **Output File**: `.claude/findings.json`
 
-**Schema source of truth**: `whitebox-pentest/references/findings.schema.json`
+**Schema source of truth**: `vuln-scout/references/findings.schema.json`
 
 **Artifact contract** (REQUIRED - follow the shared schema exactly):
 ```json

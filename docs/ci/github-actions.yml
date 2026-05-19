@@ -19,13 +19,13 @@ jobs:
         run: pip install semgrep
 
       - name: Check VulnScout readiness
-        run: python3 whitebox-pentest/scripts/doctor.py --strict
+        run: python3 vuln-scout/scripts/doctor.py --strict
 
       - name: Run quick scan
-        run: python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --format sarif --output findings.sarif
+        run: python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick --format sarif --output findings.sarif
 
       - name: Fail on high findings
-        run: python3 whitebox-pentest/scripts/report.py .claude/findings.json --fail-on high
+        run: python3 vuln-scout/scripts/report.py .claude/findings.json --fail-on high
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3

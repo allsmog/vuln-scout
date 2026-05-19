@@ -24,9 +24,9 @@ The bundled demo target is intentionally vulnerable and works with the offline `
 
 ```bash
 cd demo/vulnerable-app
-python3 ../../whitebox-pentest/scripts/doctor.py --strict
-python3 ../../whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --format md --output report.md
-python3 ../../whitebox-pentest/scripts/report.py .claude/findings.json --format html --output report.html
+python3 ../../vuln-scout/scripts/doctor.py --strict
+python3 ../../vuln-scout/scripts/scan_orchestrator.py . --profile quick --format md --output report.md
+python3 ../../vuln-scout/scripts/report.py .claude/findings.json --format html --output report.html
 ```
 
 Expected quick-profile result: four findings from bundled local rules:
@@ -42,21 +42,21 @@ No Semgrep registry/network access is required for this demo.
 
 ```bash
 # 1. Check local readiness
-python3 whitebox-pentest/scripts/doctor.py --strict
+python3 vuln-scout/scripts/doctor.py --strict
 
 # 2. Run deterministic local scan
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --format sarif --output findings.sarif
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick --format sarif --output findings.sarif
 
 # 3. Review or suppress accepted risk
-cp whitebox-pentest/references/vuln-scout-ignore.example .vuln-scout-ignore
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --suppressions .vuln-scout-ignore
+cp vuln-scout/references/vuln-scout-ignore.example .vuln-scout-ignore
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick --suppressions .vuln-scout-ignore
 
 # 4. Export human and machine reports
-python3 whitebox-pentest/scripts/report.py .claude/findings.json --format html --output security-report.html
-python3 whitebox-pentest/scripts/report.py .claude/findings.json --format sarif --output findings.sarif
+python3 vuln-scout/scripts/report.py .claude/findings.json --format html --output security-report.html
+python3 vuln-scout/scripts/report.py .claude/findings.json --format sarif --output findings.sarif
 
 # 5. Fail CI on blocking findings
-python3 whitebox-pentest/scripts/report.py .claude/findings.json --fail-on high
+python3 vuln-scout/scripts/report.py .claude/findings.json --fail-on high
 ```
 
 ## Scan Profiles
@@ -100,10 +100,10 @@ Traditional SAST tools find patterns. VulnScout **understands your application**
 ```bash
 # Option 1: Symlink into your project's plugin directory
 mkdir -p .claude/plugins
-ln -s /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
+ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 
 # Option 2: Copy into your project
-cp -r /path/to/vuln-scout/whitebox-pentest .claude/plugins/whitebox-pentest
+cp -r /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 
 # Run a full audit
 /whitebox-pentest:full-audit .
@@ -140,26 +140,26 @@ VulnScout includes Python scripts that run independently of Claude Code:
 
 ```bash
 # Check local runtime readiness
-python3 whitebox-pentest/scripts/doctor.py
+python3 vuln-scout/scripts/doctor.py
 
 # Stable quick scan with bundled local rules
-python3 whitebox-pentest/scripts/scan_orchestrator.py /path/to/code --profile quick --format sarif
+python3 vuln-scout/scripts/scan_orchestrator.py /path/to/code --profile quick --format sarif
 
 # Create a Joern CPG (cached by content hash)
-python3 whitebox-pentest/scripts/create_cpg.py /path/to/code
+python3 vuln-scout/scripts/create_cpg.py /path/to/code
 
 # Batch-verify findings with Joern CPG analysis
-python3 whitebox-pentest/scripts/batch_verify.py --findings .claude/findings.json --cpg .joern/*.cpg
+python3 vuln-scout/scripts/batch_verify.py --findings .claude/findings.json --cpg .joern/*.cpg
 
 # Render HTML or Markdown from an existing findings artifact
-python3 whitebox-pentest/scripts/report.py .claude/findings.json --format html --output security-report.html
+python3 vuln-scout/scripts/report.py .claude/findings.json --format html --output security-report.html
 
 # CI gate: fail on high-severity findings
-python3 whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --fail-on high --format sarif --output findings.sarif
+python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick --fail-on high --format sarif --output findings.sarif
 
 # Validate and run prompt/skill eval suites
-python3 whitebox-pentest/scripts/validate_evals.py
-python3 whitebox-pentest/scripts/run_prompt_evals.py
+python3 vuln-scout/scripts/validate_evals.py
+python3 vuln-scout/scripts/run_prompt_evals.py
 ```
 
 ## What You Get
@@ -426,7 +426,7 @@ Safety-first: PoCs run in `--dry-run` mode by default, require user confirmation
 ## Project Structure
 
 ```
-whitebox-pentest/
+vuln-scout/
   .claude-plugin/plugin.json   # Plugin manifest
   agents/                       # 8 autonomous security analysts
   commands/                     # 13 slash commands

@@ -34,7 +34,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
 ## Source of truth
 
 - Read `.claude/findings.json`
-- Validate it against `whitebox-pentest/references/findings.schema.json`
+- Validate it against `vuln-scout/references/findings.schema.json`
 - Respect `kind`
   - `finding`: reportable issue
   - `hotspot`: risky audit pivot, shown separately from findings

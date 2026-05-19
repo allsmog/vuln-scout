@@ -4,4 +4,4 @@ No prompt eval benchmark has been generated yet.
 
 Run:
 
-`python3 whitebox-pentest/scripts/run_prompt_evals.py`
+`python3 vuln-scout/scripts/run_prompt_evals.py`

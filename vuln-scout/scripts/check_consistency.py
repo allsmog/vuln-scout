@@ -72,7 +72,7 @@ def validate() -> list[str]:
     package_version = package.get("version")
     for label, version in (
         ("module.manifest.json", module_manifest.get("version")),
-        ("whitebox-pentest/.claude-plugin/plugin.json", manifest.get("version")),
+        ("vuln-scout/.claude-plugin/plugin.json", manifest.get("version")),
     ):
         if version != package_version:
             errors.append(f"{label} version {version!r} must match package.json {package_version!r}")
@@ -111,7 +111,7 @@ def validate() -> list[str]:
     if "Claude Code plugin" not in readmes["root"]:
         errors.append("README.md should describe the plugin as Claude-first")
     if "Claude Code plugin" not in readmes["plugin"]:
-        errors.append("whitebox-pentest/README.md should describe the plugin as Claude-first")
+        errors.append("vuln-scout/README.md should describe the plugin as Claude-first")
     if "Claude Code plugin" not in readmes["agents"]:
         errors.append("AGENTS.md should describe the plugin as Claude-first")
     if "hotspot-aware findings" not in manifest.get("description", ""):

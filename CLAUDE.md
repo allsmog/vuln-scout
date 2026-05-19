@@ -5,7 +5,7 @@ A Claude Code plugin for whitebox penetration testing, supporting 9 languages in
 ## Project Structure
 
 ```
-whitebox-pentest/
+vuln-scout/
 ├── .claude-plugin/plugin.json  # Plugin manifest
 ├── agents/                      # Autonomous security analysts
 ├── commands/                    # Slash commands (/full-audit, /scope, etc.)
@@ -29,7 +29,7 @@ whitebox-pentest/
 - Commands are markdown files in `commands/` with YAML frontmatter
 - Hooks are in `hooks/` for event-driven automation
 - Prompt-first orchestration artifacts live in `.claude/audit-plan.md` and `.claude/review-ledger.json`
-- Prompt eval definitions live in `whitebox-pentest/evals/`; validate with `python3 whitebox-pentest/scripts/validate_evals.py`
+- Prompt eval definitions live in `vuln-scout/evals/`; validate with `python3 vuln-scout/scripts/validate_evals.py`
 
 ## Supported Languages
 
@@ -46,8 +46,8 @@ Go, TypeScript/JS, Python, Java, Rust, PHP, C#/.NET, Ruby, Solidity
 
 Before tagging a release, verify:
 
-- [ ] `python3 whitebox-pentest/scripts/check_consistency.py` passes
-- [ ] Skill count matches across root README, whitebox-pentest/README.md, and filesystem (`ls skills/`)
+- [ ] `python3 vuln-scout/scripts/check_consistency.py` passes
+- [ ] Skill count matches across root README, vuln-scout/README.md, and filesystem (`ls skills/`)
 - [ ] Agent and command counts match across both READMEs
 - [ ] OWASP mapping language uses official OWASP Top 10 names in public docs
 - [ ] Every skill directory has a `SKILL.md` entry point
@@ -61,4 +61,4 @@ Before tagging a release, verify:
 - [ ] `hotspot` vs `finding` semantics are consistent across commands, agents, and examples
 - [ ] `--since-commit`, `--suppressions`, `--fail-on`, and `--format` are documented wherever supported
 - [ ] `whitebox-pentest-state.json` schema matches between full-audit.md and session-init.md
-- [ ] `python3 whitebox-pentest/scripts/validate_evals.py` passes before running prompt benchmarks
+- [ ] `python3 vuln-scout/scripts/validate_evals.py` passes before running prompt benchmarks

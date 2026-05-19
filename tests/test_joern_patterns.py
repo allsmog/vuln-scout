@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-JOERN_DIR = ROOT / "whitebox-pentest" / "scripts" / "joern"
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+JOERN_DIR = ROOT / "vuln-scout" / "scripts" / "joern"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import batch_verify  # noqa: E402

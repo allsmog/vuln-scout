@@ -12,7 +12,7 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
 DEMO_DIR = ROOT / "demo" / "vulnerable-app"
 
@@ -358,8 +358,8 @@ class PackageContentsTests(unittest.TestCase):
         pack = json.loads(result.stdout)[0]
         paths = {entry["path"] for entry in pack["files"]}
 
-        self.assertIn("whitebox-pentest/rules/vuln-scout-local.yml", paths)
-        self.assertIn("whitebox-pentest/scripts/doctor.py", paths)
+        self.assertIn("vuln-scout/rules/vuln-scout-local.yml", paths)
+        self.assertIn("vuln-scout/scripts/doctor.py", paths)
         self.assertIn("demo/vulnerable-app/README.md", paths)
         self.assertIn("docs/feature-maturity.md", paths)
         self.assertIn("docs/ci/github-actions.yml", paths)

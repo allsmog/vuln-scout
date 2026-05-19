@@ -9,9 +9,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
-EVALS_DIR = ROOT / "whitebox-pentest" / "evals"
+EVALS_DIR = ROOT / "vuln-scout" / "evals"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -121,20 +121,20 @@ class EvalValidationTests(unittest.TestCase):
 
 class CommandDocContractTests(unittest.TestCase):
     def test_full_audit_documents_condensed_quick_plan(self) -> None:
-        text = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
+        text = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
         self.assertIn("Condensed audit plan", text)
         self.assertIn(".claude/audit-plan.md", text)
 
     def test_unresolved_review_notes_stay_needs_review(self) -> None:
-        full_audit = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
-        verify = (ROOT / "whitebox-pentest" / "commands" / "verify.md").read_text()
+        full_audit = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
+        verify = (ROOT / "vuln-scout" / "commands" / "verify.md").read_text()
         self.assertIn("[REVIEWER NOTE: unresolved]", full_audit)
         self.assertIn("needs_review", full_audit)
         self.assertIn("[REVIEWER NOTE: unresolved]", verify)
         self.assertIn("needs_review", verify)
 
     def test_no_interactive_path_forbids_ask_user_question(self) -> None:
-        text = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
+        text = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
         self.assertIn("When `--no-interactive` is passed, **NEVER call AskUserQuestion**.", text)
         self.assertIn("NEVER call `AskUserQuestion`", text)
 
