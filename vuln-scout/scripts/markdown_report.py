@@ -25,6 +25,7 @@ def generate(artifact: dict[str, Any]) -> str:
         _header(artifact),
         _executive_summary(artifact),
         _tool_status(artifact),
+        _tool_maturity(artifact),
         _attack_chains(artifact),
         _all_findings(artifact.get("findings", [])),
         _full_hotspot_list(artifact.get("findings", [])),
@@ -140,6 +141,29 @@ def _tool_status(artifact: dict[str, Any]) -> str:
             value = "not run"
         lines.append(f"| {tool} | {value} |")
 
+    return "\n".join(lines)
+
+
+def _tool_maturity(artifact: dict[str, Any]) -> str:
+    maturity = artifact.get("maturity", {})
+    if not maturity:
+        return ""
+
+    profile = artifact.get("scan_profile")
+    profile_maturity = maturity.get("profiles", {}).get(profile)
+    tools = artifact.get("tool_status", {}).get("requested") or artifact.get("coverage", {}).get("tools_used") or []
+    if not tools:
+        tools = sorted({f.get("source_tool") for f in artifact.get("findings", []) if f.get("source_tool")})
+    analyzers = maturity.get("analyzers", {})
+    commands = maturity.get("commands", {})
+
+    lines = ["## Tool Maturity\n"]
+    if profile and profile_maturity:
+        lines.append(f"**Profile**: `{profile}` ({profile_maturity})  ")
+    if tools:
+        lines.extend(["", "| Tool | Maturity |", "|------|----------|"])
+        for tool in tools:
+            lines.append(f"| `{tool}` | {analyzers.get(tool) or commands.get(tool, 'unknown')} |")
     return "\n".join(lines)
 
 

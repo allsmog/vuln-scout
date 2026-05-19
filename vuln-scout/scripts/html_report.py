@@ -101,6 +101,7 @@ def generate(artifact: dict[str, Any], max_findings: int = 200) -> str:
         '<main class="container">',
         _summary_section(summary, score, verified_count, needs_review_count, len(chains)),
         _tool_status_section(artifact.get("tool_status", {})),
+        _tool_maturity_section(artifact),
         _chain_graph_section(chains, findings_by_id),
         _findings_table(findings, truncated),
         _hotspots_section(hotspots),
@@ -503,6 +504,47 @@ def _tool_status_section(status: dict[str, Any]) -> str:
     return (
         '<div class="section">\n'
         '  <div class="section-title">Tool Status</div>\n'
+        '  <div class="coverage-grid">\n'
+        f'    {"".join(cards)}\n'
+        '  </div>\n'
+        '</div>'
+    )
+
+
+def _tool_maturity_section(artifact: dict[str, Any]) -> str:
+    maturity = artifact.get("maturity", {})
+    if not maturity:
+        return ""
+
+    profile = artifact.get("scan_profile")
+    profile_maturity = maturity.get("profiles", {}).get(profile)
+    tools = artifact.get("tool_status", {}).get("requested") or artifact.get("coverage", {}).get("tools_used") or []
+    if not tools:
+        tools = sorted({f.get("source_tool") for f in artifact.get("findings", []) if f.get("source_tool")})
+    analyzers = maturity.get("analyzers", {})
+    commands = maturity.get("commands", {})
+
+    cards = []
+    if profile and profile_maturity:
+        cards.append(
+            '<div class="cov-card">'
+            '<h4>Profile</h4>'
+            f'<p>{html.escape(str(profile))}: {html.escape(str(profile_maturity))}</p>'
+            '</div>'
+        )
+    for tool in tools:
+        cards.append(
+            '<div class="cov-card">'
+            f'<h4>{html.escape(str(tool))}</h4>'
+            f'<p>{html.escape(str(analyzers.get(tool) or commands.get(tool, "unknown")))}</p>'
+            '</div>'
+        )
+    if not cards:
+        return ""
+
+    return (
+        '<div class="section">\n'
+        '  <div class="section-title">Tool Maturity</div>\n'
         '  <div class="coverage-grid">\n'
         f'    {"".join(cards)}\n'
         '  </div>\n'

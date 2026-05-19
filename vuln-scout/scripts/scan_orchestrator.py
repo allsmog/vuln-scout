@@ -107,6 +107,12 @@ SCAN_PROFILES: dict[str, dict[str, str]] = {
     },
 }
 
+PROFILE_MATURITY = {
+    "quick": "stable",
+    "deep": "beta",
+    "audit": "beta",
+}
+
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -765,6 +771,7 @@ def main() -> int:
         log.error("No scanning tools available. Install semgrep, joern, gitleaks, or codeql.")
         return 1
 
+    log.info("Profile maturity: quick=stable | deep=beta | audit=beta")
     log.info("Scan profile: %s (%s)", args.profile, SCAN_PROFILES[args.profile]["description"])
     log.info("Running tools: %s", ", ".join(available))
     tool_result = run_tools(

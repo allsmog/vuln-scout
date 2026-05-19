@@ -129,6 +129,11 @@ def collect(check_network: bool = False, include_versions: bool = False) -> dict
             "deep": "available tools are used; missing optional tools are reported in tool_status",
             "audit": "Claude-assisted workflow plus installed verification tools",
         },
+        "profile_maturity": {
+            "quick": "stable",
+            "deep": "beta",
+            "audit": "beta",
+        },
         "tools": [asdict(tool) for tool in tools],
         "network": _check_network(check_network),
     }
@@ -136,6 +141,7 @@ def collect(check_network: bool = False, include_versions: bool = False) -> dict
 
 def _print_text(report: dict[str, object]) -> None:
     print("VulnScout doctor")
+    print("Profile maturity: quick=stable | deep=beta | audit=beta")
     print(f"offline_ready: {'yes' if report['offline_ready'] else 'no'}")
     local_rules = report["local_rules"]
     assert isinstance(local_rules, dict)

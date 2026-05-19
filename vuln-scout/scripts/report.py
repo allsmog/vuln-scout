@@ -21,6 +21,10 @@ from html_report import generate as generate_html
 from markdown_report import generate as generate_markdown
 
 
+PLUGIN_ROOT = Path(__file__).resolve().parents[1]
+MATURITY_PATH = PLUGIN_ROOT / "references" / "maturity.json"
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Render a VulnScout findings artifact.")
     parser.add_argument(
@@ -62,6 +66,18 @@ def _render_content(artifact: dict, fmt: str) -> tuple[str | dict, bool]:
     return generate_markdown(artifact), False
 
 
+def _load_maturity() -> dict:
+    if not MATURITY_PATH.exists():
+        return {}
+    return json.loads(MATURITY_PATH.read_text())
+
+
+def _attach_maturity(artifact: dict) -> dict:
+    enriched = dict(artifact)
+    enriched["maturity"] = _load_maturity()
+    return enriched
+
+
 def _write_output(payload: str | dict, is_json: bool, output_path: str | None) -> None:
     if output_path:
         if is_json:
@@ -91,7 +107,7 @@ def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
 
-    artifact = load_artifact(args.input)
+    artifact = _attach_maturity(load_artifact(args.input))
     suppressions = parse_suppressions(args.suppressions)
     if suppressions:
         artifact = apply_suppressions(artifact, suppressions)
