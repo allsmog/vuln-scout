@@ -132,7 +132,7 @@ export default {
         type: "object",
         properties: {
           target: { type: "string", description: "Path to the repository." },
-          format: { type: "string", enum: ["sarif", "md", "json"], description: "Report format." },
+          format: { type: "string", enum: ["sarif", "md", "json", "html", "bundle"], description: "Report format. bundle = zip of findings.json + report.html + audit-plan.md + review-ledger.json + vex.json + attestation.json." },
         },
         required: ["target"],
       }),
