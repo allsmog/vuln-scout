@@ -1,7 +1,7 @@
 {
-  "name": "whitebox-pentest",
-  "version": "3.1.1",
-  "description": "AI-powered whitebox penetration testing plugin for Claude Code. 9 languages, 27 skills, 8 autonomous agents. STRIDE threat modeling, hotspot-aware findings, SARIF output, and polyglot monorepo support.",
+  "name": "vuln-scout",
+  "version": "3.2.0",
+  "description": "Claude Code plugin for whitebox security review. Stable: deterministic offline quick scan, shared findings.json with stable keys and hotspot-aware findings, SARIF/Markdown/HTML/bundle reports, suppressions, CI fail-on gate, Kuzushi parity. Beta: deep profile with Joern/CodeQL/Slither/Trivy/Checkov when installed. Experimental: auto-fix, PoC, mutation. Writes audit-plan.md and review-ledger.json for reviewer-driven workflows.",
   "author": {
     "name": "allsmog",
     "url": "https://github.com/allsmog/vuln-scout"
