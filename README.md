@@ -4,19 +4,26 @@
 
 <h1 align="center">VulnScout</h1>
 
-<p align="center"><strong>AI-assisted whitebox security review for Claude Code and Kuzushi.</strong></p>
+<p align="center"><strong>Claude Code plugin for whitebox security review with deterministic quick scans, evidence-backed verification, and portable reports.</strong></p>
 
-Install it, run a deterministic quick scan, triage findings, suppress accepted risk, export a report, and fail CI on blocking issues.
+<p align="center">
+  <a href="docs/feature-maturity.md"><img alt="stable quick scan" src="https://img.shields.io/badge/quick%20scan-stable-16a34a"></a>
+  <a href="docs/feature-maturity.md"><img alt="deep analyzers beta" src="https://img.shields.io/badge/deep%20analyzers-beta-ca8a04"></a>
+  <a href="docs/feature-maturity.md"><img alt="auto fix experimental" src="https://img.shields.io/badge/auto--fix-experimental-6b7280"></a>
+</p>
 
+Install from the marketplace: `claude plugin install vuln-scout`
+
+Run the canonical audit workflow:
 ```
 /vuln-scout:full-audit /path/to/code
 ```
 
 ---
 
-VulnScout is a Claude Code plugin for AppSec engineers and senior developers doing whitebox review. It brings pentesting methodology (HTB Academy, OffSec AWAE/OSWE) into your terminal with STRIDE threat modeling, evidence-first findings, and support for 9 source languages including Solidity smart contracts.
+VulnScout's stable promise is the offline `quick` profile, a shared `findings.json` contract, SARIF/Markdown/HTML/bundle reports, suppressions, and a CI fail-on gate. Optional deep analyzers are beta when installed, and auto-fix/PoC/mutation workflows remain experimental.
 
-Current release gates cover the Python scanner/reporting code, prompt consistency checks, eval definition validation, Kuzushi module import, and npm package dry-runs. Broad analyzer claims are documented as stable, beta, or experimental below.
+It writes `audit-plan.md` and `review-ledger.json` for reviewer-driven workflows, and exposes the same product surface to Claude Code and Kuzushi.
 
 ## 5-Minute Demo
 
