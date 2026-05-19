@@ -15,6 +15,11 @@ VALID_WORKFLOW_COMMANDS = {
     "/vuln-scout:threats",
     "/vuln-scout:verify",
 }
+VALID_REPORT_RENDERERS = {"markdown", "html", "sarif", "bundle", "pr_comment"}
+VALID_REPORT_ASSERTIONS = {
+    "hotspot_with_verification_level_ge_3_becomes_finding",
+    "migrate_then_migrate_equal",
+}
 
 
 def _load_json(path: Path) -> Any:
@@ -134,15 +139,81 @@ def validate_workflow_cases(cases: Any) -> list[str]:
     return errors
 
 
+def validate_report_quality_cases(cases: Any) -> list[str]:
+    errors: list[str] = []
+    if not isinstance(cases, list):
+        return ["report_quality_evals.json must contain a list"]
+
+    if len(cases) < 5:
+        errors.append("report_quality_evals.json must contain at least 5 cases")
+
+    for index, case in enumerate(cases):
+        location = f"report_quality_evals[{index}]"
+        if not isinstance(case, dict):
+            errors.append(f"{location} must be an object")
+            continue
+
+        for key in ("id", "input_fixture"):
+            if key not in case:
+                errors.append(f"{location} missing key: {key}")
+
+        if not isinstance(case.get("id"), str) or not case.get("id", "").strip():
+            errors.append(f"{location}.id must be a non-empty string")
+
+        input_fixture = case.get("input_fixture")
+        if not isinstance(input_fixture, str) or not input_fixture.strip():
+            errors.append(f"{location}.input_fixture must be a non-empty string")
+
+        renderer = case.get("renderer")
+        assertion = case.get("assertion")
+        if renderer is None and assertion is None:
+            errors.append(f"{location} must define either renderer or assertion")
+        if renderer is not None and assertion is not None:
+            errors.append(f"{location} must not define both renderer and assertion")
+
+        if renderer is not None:
+            if renderer not in VALID_REPORT_RENDERERS:
+                errors.append(f"{location}.renderer must be one of {sorted(VALID_REPORT_RENDERERS)}")
+
+            for list_key in ("must_contain", "must_not_contain", "expected_bundle_files", "expected_vex_states"):
+                value = case.get(list_key)
+                if value is not None:
+                    if not isinstance(value, list):
+                        errors.append(f"{location}.{list_key} must be a list")
+                    elif any(not isinstance(item, str) or not item.strip() for item in value):
+                        errors.append(f"{location}.{list_key} entries must be non-empty strings")
+
+            attestation_keys = case.get("attestation_must_contain_keys")
+            if attestation_keys is not None:
+                if not isinstance(attestation_keys, list):
+                    errors.append(f"{location}.attestation_must_contain_keys must be a list")
+                elif any(not isinstance(item, str) or not item.strip() for item in attestation_keys):
+                    errors.append(f"{location}.attestation_must_contain_keys entries must be non-empty strings")
+
+            max_bytes = case.get("max_bytes")
+            if max_bytes is not None and (not isinstance(max_bytes, int) or max_bytes < 1):
+                errors.append(f"{location}.max_bytes must be an integer >= 1")
+
+        if assertion is not None and assertion not in VALID_REPORT_ASSERTIONS:
+            errors.append(f"{location}.assertion must be one of {sorted(VALID_REPORT_ASSERTIONS)}")
+
+    return errors
+
+
 def validate_eval_suite(evals_dir: Path = DEFAULT_EVALS_DIR) -> list[str]:
     errors: list[str] = []
 
-    trigger_path = evals_dir / "trigger_evals.json"
-    workflow_path = evals_dir / "workflow_evals.json"
     benchmark_json_path = evals_dir / "benchmark.json"
     benchmark_md_path = evals_dir / "benchmark.md"
 
-    for path in (trigger_path, workflow_path, benchmark_json_path, benchmark_md_path):
+    eval_paths = sorted(evals_dir.glob("*_evals.json"))
+    expected_eval_files = {"trigger_evals.json", "workflow_evals.json", "report_quality_evals.json"}
+    seen_eval_files = {path.name for path in eval_paths}
+
+    for name in sorted(expected_eval_files - seen_eval_files):
+        errors.append(f"missing eval artifact: {name}")
+
+    for path in (benchmark_json_path, benchmark_md_path):
         if not path.exists():
             errors.append(f"missing eval artifact: {path.name}")
 
@@ -150,13 +221,22 @@ def validate_eval_suite(evals_dir: Path = DEFAULT_EVALS_DIR) -> list[str]:
         return errors
 
     try:
-        trigger_cases = _load_json(trigger_path)
-        workflow_cases = _load_json(workflow_path)
+        loaded = {path.name: _load_json(path) for path in eval_paths}
     except json.JSONDecodeError as exc:
         return [f"invalid eval JSON: {exc}"]
 
-    errors.extend(validate_trigger_cases(trigger_cases))
-    errors.extend(validate_workflow_cases(workflow_cases))
+    validators = {
+        "trigger_evals.json": validate_trigger_cases,
+        "workflow_evals.json": validate_workflow_cases,
+        "report_quality_evals.json": validate_report_quality_cases,
+    }
+    for path in eval_paths:
+        validator = validators.get(path.name)
+        if validator is None:
+            errors.append(f"no validator registered for eval artifact: {path.name}")
+            continue
+        errors.extend(validator(loaded[path.name]))
+
     return errors
 
 
