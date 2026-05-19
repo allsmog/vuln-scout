@@ -21,6 +21,7 @@ VALID_REVIEW_SUBJECT_TYPES = {
     "threat-model",
     "module-findings",
     "finding-verification",
+    "app-understanding",
 }
 VALID_REVIEW_STATUS = {"APPROVED", "CHANGES_REQUESTED", "UNRESOLVED"}
 REVIEWER_UNRESOLVED_TAG = "[REVIEWER NOTE: unresolved]"
@@ -35,6 +36,13 @@ REQUIRED_STATE_ARTIFACT_KEYS = (
 )
 REQUIRED_REVIEW_STATE_KEYS = ("audit_plan", "threat_model", "findings")
 REQUIRED_PHASE_MARKERS = {"audit-plan", "threat-review", "finding-review"}
+APP_UNDERSTANDING_REQUIRED_SECTIONS = (
+    "Application Overview",
+    "Trust Boundaries",
+    "Entry Points",
+    "Frameworks and Dependencies",
+    "High-Risk Modules",
+)
 TRUST_METADATA_PROVENANCE_VALUES = {
     "deterministic_tool",
     "llm_analysis",
@@ -77,6 +85,14 @@ def validate_audit_plan(text: str) -> list[str]:
     missing = missing_markdown_sections(text, list(AUDIT_PLAN_REQUIRED_SECTIONS))
     if missing:
         errors.append(f"audit plan missing sections: {', '.join(missing)}")
+    return errors
+
+
+def validate_app_understanding(text: str) -> list[str]:
+    errors: list[str] = []
+    missing = missing_markdown_sections(text, APP_UNDERSTANDING_REQUIRED_SECTIONS)
+    if missing:
+        errors.append(f"app understanding missing sections: {', '.join(missing)}")
     return errors
 
 
