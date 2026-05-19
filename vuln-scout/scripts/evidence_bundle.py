@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from artifact_utils import dump_json, stable_key_for, to_sarif
+from html_report import generate as generate_html
 
 
 def _utc_now() -> str:
@@ -150,6 +151,7 @@ def build_attestation(
             "findings.sarif",
             "vex.json",
             "attestation.json",
+            "report.html",
             "README.md",
         ],
     }
@@ -170,6 +172,7 @@ def _readme(artifact: dict[str, Any], generated_at: str) -> str:
         "- `findings.sarif` - SARIF 2.1.0 output for code scanning integrations.",
         "- `vex.json` - CycloneDX-style exploitability statements for reportable findings.",
         "- `attestation.json` - Tool status, counts, suppressions, and input artifact digest.",
+        "- `report.html` - Self-contained human-readable HTML report.",
         "",
         "## Summary",
         "",
@@ -206,11 +209,13 @@ def generate(
         "sarif": output_path / "findings.sarif",
         "vex": output_path / "vex.json",
         "attestation": output_path / "attestation.json",
+        "html": output_path / "report.html",
         "readme": output_path / "README.md",
     }
     dump_json(normalized_artifact, paths["findings"])
     dump_json(to_sarif(normalized_artifact), paths["sarif"])
     dump_json(vex, paths["vex"])
     dump_json(attestation, paths["attestation"])
+    paths["html"].write_text(generate_html(normalized_artifact) + "\n")
     paths["readme"].write_text(_readme(normalized_artifact, generated_at))
     return paths
