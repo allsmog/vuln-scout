@@ -13,8 +13,13 @@ try:
 except ImportError:  # pragma: no cover - supports direct module reuse outside scripts/
     safe_read_text = None
 
-SCHEMA_VERSION = "1.1.0"
-VALID_SCHEMA_VERSIONS = {"1.0.0", "1.1.0"}
+try:
+    from prompt_artifacts import validate_trust_metadata
+except ImportError:  # pragma: no cover - supports direct module reuse outside scripts/
+    validate_trust_metadata = None
+
+SCHEMA_VERSION = "1.2.0"
+VALID_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "1.2.0"}
 VALID_KINDS = {"finding", "hotspot"}
 VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
 VALID_VERDICTS = {"verified", "false_positive", "needs_review", "unverified", "na_cpg"}
@@ -294,6 +299,13 @@ def validate_findings_artifact(artifact: dict[str, Any]) -> list[str]:
         stored_key = finding.get("stable_key", "")
         if stored_key.startswith("vscout:") and stored_key != computed_key:
             errors.append(f"{location}.stable_key is not stable for the current finding payload")
+
+        if artifact.get("schema_version") == "1.2.0":
+            if validate_trust_metadata is None:
+                errors.append(f"{location}.trust_metadata validator unavailable")
+            else:
+                for trust_error in validate_trust_metadata(finding):
+                    errors.append(f"{location}.{trust_error}")
 
     return errors
 

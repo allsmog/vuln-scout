@@ -35,6 +35,22 @@ REQUIRED_STATE_ARTIFACT_KEYS = (
 )
 REQUIRED_REVIEW_STATE_KEYS = ("audit_plan", "threat_model", "findings")
 REQUIRED_PHASE_MARKERS = {"audit-plan", "threat-review", "finding-review"}
+TRUST_METADATA_PROVENANCE_VALUES = {
+    "deterministic_tool",
+    "llm_analysis",
+    "dynamic_verified",
+    "human_review",
+    "mixed",
+}
+TRUST_METADATA_EXPLOIT_VALUES = {
+    "confirmed",
+    "plausible",
+    "blocked_by_control",
+    "requires_auth",
+    "unreachable",
+    "unknown",
+}
+TRUST_METADATA_FP_LEVELS = {"low", "medium", "high", "unknown"}
 
 
 def _normalize_heading(value: str) -> str:
@@ -178,5 +194,56 @@ def validate_orchestration_state(state: dict[str, Any]) -> list[str]:
     missing_phase_markers = sorted(REQUIRED_PHASE_MARKERS.difference(phases_completed))
     if missing_phase_markers:
         errors.append(f"phases_completed missing markers: {', '.join(missing_phase_markers)}")
+
+    return errors
+
+
+def validate_trust_metadata(finding: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    trust_metadata = finding.get("trust_metadata")
+    if not isinstance(trust_metadata, dict):
+        return ["trust_metadata must be an object"]
+
+    provenance = trust_metadata.get("provenance")
+    if not isinstance(provenance, dict):
+        errors.append("trust_metadata.provenance must be an object")
+    else:
+        origin = provenance.get("origin")
+        if origin not in TRUST_METADATA_PROVENANCE_VALUES:
+            errors.append(
+                f"trust_metadata.provenance.origin must be one of {sorted(TRUST_METADATA_PROVENANCE_VALUES)}"
+            )
+        contributors = provenance.get("contributors")
+        if contributors is not None:
+            if not isinstance(contributors, list):
+                errors.append("trust_metadata.provenance.contributors must be a list")
+            else:
+                valid_contributors = TRUST_METADATA_PROVENANCE_VALUES - {"mixed"}
+                invalid = [value for value in contributors if value not in valid_contributors]
+                if invalid:
+                    errors.append(f"trust_metadata.provenance.contributors invalid: {invalid}")
+
+    exploitability_status = trust_metadata.get("exploitability_status")
+    if exploitability_status not in TRUST_METADATA_EXPLOIT_VALUES:
+        errors.append(
+            f"trust_metadata.exploitability_status must be one of {sorted(TRUST_METADATA_EXPLOIT_VALUES)}"
+        )
+
+    false_positive_risk = trust_metadata.get("false_positive_risk")
+    if not isinstance(false_positive_risk, dict):
+        errors.append("trust_metadata.false_positive_risk must be an object")
+    else:
+        level = false_positive_risk.get("level")
+        if level not in TRUST_METADATA_FP_LEVELS:
+            errors.append(
+                f"trust_metadata.false_positive_risk.level must be one of {sorted(TRUST_METADATA_FP_LEVELS)}"
+            )
+
+    confidence_reason = trust_metadata.get("confidence_reason")
+    if confidence_reason is not None:
+        if not isinstance(confidence_reason, str):
+            errors.append("trust_metadata.confidence_reason must be a string")
+        elif len(confidence_reason) > 280:
+            errors.append("trust_metadata.confidence_reason must be <= 280 characters")
 
     return errors
