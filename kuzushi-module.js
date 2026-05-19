@@ -3,7 +3,7 @@
  * Exposes whitebox pentesting commands as ModuleTools.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,6 +11,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const COMMANDS_DIR = join(__dirname, "vuln-scout", "commands");
 const PACKAGE_JSON = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
 const PACKAGE_VERSION = PACKAGE_JSON.version;
+
+const TOOL_MATURITY = {
+  "vuln-scout:audit": "stable",
+  "vuln-scout:verify": "stable",
+  "vuln-scout:report": "stable",
+  "vuln-scout:scope": "stable",
+  "vuln-scout:diff": "stable",
+  "vuln-scout:scan": "beta",
+  "vuln-scout:threats": "beta",
+  "vuln-scout:sinks": "beta",
+  "vuln-scout:trace": "beta",
+  "vuln-scout:propagate": "beta",
+  "vuln-scout:create-rule": "experimental",
+  "vuln-scout:mutate": "experimental",
+  "vuln-scout:fix": "experimental",
+};
 
 function loadCommand(name) {
   const commandPath = join(COMMANDS_DIR, `${name}.md`);
@@ -25,6 +41,22 @@ function buildPrompt(commandPrompt, params, target) {
     ? `\n\nParameters:\n${JSON.stringify(extraParams, null, 2)}`
     : "";
   return `${commandPrompt}\n\nTarget: ${target}${paramsText}`.trim();
+}
+
+function collectArtifacts(target, params) {
+  const claudeDir = join(target, ".claude");
+  const artifacts = {};
+  for (const [key, rel] of [
+    ["findings", "findings.json"],
+    ["audit_plan", "audit-plan.md"],
+    ["review_ledger", "review-ledger.json"],
+    ["threat_model", "threat-model.md"],
+  ]) {
+    const p = join(claudeDir, rel);
+    if (existsSync(p)) artifacts[key] = p;
+  }
+  if (params.output && existsSync(params.output)) artifacts.report = params.output;
+  return artifacts;
 }
 
 function createTool(cmdName, toolName, description, inputSchema) {
@@ -52,7 +84,13 @@ function createTool(cmdName, toolName, description, inputSchema) {
             }
           }
         }
-        return { ok: true, output: text || "Analysis complete." };
+        return {
+          ok: true,
+          output: text || "Analysis complete.",
+          artifacts: collectArtifacts(target, params),
+          maturity: TOOL_MATURITY[toolName],
+          toolName,
+        };
       } catch (err) {
         return { ok: false, output: `VulnScout error: ${err.message ?? err}` };
       }
