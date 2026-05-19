@@ -15,7 +15,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "enum": ["1.0.0", "1.1.0"]
+      "enum": ["1.0.0", "1.1.0", "1.2.0"]
     },
     "scan_id": {
       "type": "string"
@@ -302,6 +302,49 @@
               "sanitization_present": { "type": ["boolean", "null"] },
               "sanitization_effective": { "type": ["boolean", "null"] },
               "exploitable": { "type": ["boolean", "null"] }
+            }
+          },
+          "trust_metadata": {
+            "type": "object",
+            "description": "Trust-model signals introduced in schema v1.2.0",
+            "properties": {
+              "provenance": {
+                "type": "object",
+                "required": ["origin"],
+                "properties": {
+                  "origin": {
+                    "type": "string",
+                    "enum": ["deterministic_tool", "llm_analysis", "dynamic_verified", "human_review", "mixed"]
+                  },
+                  "tool": { "type": "string" },
+                  "contributors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["deterministic_tool", "llm_analysis", "dynamic_verified", "human_review"]
+                    }
+                  }
+                }
+              },
+              "exploitability_status": {
+                "type": "string",
+                "enum": ["confirmed", "plausible", "blocked_by_control", "requires_auth", "unreachable", "unknown"]
+              },
+              "false_positive_risk": {
+                "type": "object",
+                "required": ["level"],
+                "properties": {
+                  "level": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "unknown"]
+                  },
+                  "reason": { "type": "string" }
+                }
+              },
+              "confidence_reason": {
+                "type": "string",
+                "maxLength": 280
+              }
             }
           },
           "chain_id": {
