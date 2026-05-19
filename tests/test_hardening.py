@@ -32,6 +32,8 @@ create_cpg = load_module("create_cpg_hardening", SCRIPTS_DIR / "create_cpg.py")
 api_spec_parser = load_module("api_spec_parser_hardening", SCRIPTS_DIR / "api_spec_parser.py")
 run_diff = load_module("run_diff_hardening", SCRIPTS_DIR / "run_diff.py")
 batch_verify = load_module("batch_verify_hardening", SCRIPTS_DIR / "batch_verify.py")
+artifact_utils = load_module("artifact_utils_hardening", SCRIPTS_DIR / "artifact_utils.py")
+scan_orchestrator = load_module("scan_orchestrator_hardening", SCRIPTS_DIR / "scan_orchestrator.py")
 joern_runner = load_module(
     "joern_runner_hardening",
     SCRIPTS_DIR / "tool_runners" / "joern_runner.py",
@@ -188,6 +190,38 @@ class PathHardeningTests(unittest.TestCase):
             specs = api_spec_parser.discover_specs(str(repo))
 
             self.assertEqual(specs, [])
+
+    def test_scan_language_detection_skips_external_symlink(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            external = root / "outside.py"
+            external.write_text("print('outside')\n")
+            repo = root / "repo"
+            repo.mkdir()
+            (repo / "app.py").write_text("print('inside')\n")
+            (repo / "linked.py").symlink_to(external)
+            scope = scan_orchestrator.ScanScope(
+                target_path=repo,
+                changed_files=None,
+                excluded_patterns=list(scan_orchestrator.BASELINE_EXCLUDES),
+                diff_ref=None,
+            )
+
+            languages = scan_orchestrator.detect_languages(scope)
+
+            self.assertEqual(languages, {"python": ["app.py"]})
+
+    def test_semantic_context_reader_rejects_path_escape(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            repo = root / "repo"
+            repo.mkdir()
+            outside = root / "outside.py"
+            outside.write_text("password = 'secret'\n")
+
+            context = artifact_utils.read_code_context("../outside.py", 1, str(repo))
+
+            self.assertEqual(context, "")
 
 
 class RunDiffHardeningTests(unittest.TestCase):
