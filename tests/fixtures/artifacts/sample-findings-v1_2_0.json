@@ -1,0 +1,711 @@
+{
+  "schema_version": "1.2.0",
+  "scan_id": "fixture-scan-v1_2_0",
+  "project_path": "/tmp/vuln-scout-fixtures",
+  "completed_at": "2026-05-19T00:00:00Z",
+  "source_tool": "multi",
+  "scan_profile": "audit",
+  "summary": {
+    "total_findings": 12,
+    "total_hotspots": 2,
+    "critical": 2,
+    "high": 4,
+    "medium": 4,
+    "low": 1,
+    "info": 1
+  },
+  "coverage": {
+    "files_scanned": 22,
+    "files_skipped": 1,
+    "lines_scanned": 1480,
+    "ruleset": "fixtures-v1_2_0"
+  },
+  "verification": {
+    "verified": 5,
+    "false_positive": 1,
+    "needs_review": 5,
+    "findings_skipped": 1,
+    "joern_available": true
+  },
+  "findings": [
+    {
+      "id": "VSCOUT-QA-001",
+      "stable_key": "fixture:v1_2:js-sqli-confirmed",
+      "kind": "finding",
+      "severity": "critical",
+      "type": "sql-injection",
+      "title": "SQL injection in login handler",
+      "file": "tests/fixtures/code/js/vulnerable-sqli/app.ts",
+      "line": 6,
+      "rule_id": "semgrep.js.sqli",
+      "cwe": "CWE-89",
+      "verdict": "verified",
+      "confidence": "verified",
+      "source_tool": "semgrep",
+      "message": "User-controlled email is interpolated directly into a SQL query.",
+      "remediation": "Use parameterized queries for all user-controlled values.",
+      "in_diff": true,
+      "dynamic_verified": true,
+      "verification_level": 4,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "cvss_score": 9.1,
+      "chain_id": "chain-account-takeover",
+      "chain_role": "entry",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "tainted query",
+          "path": "tests/fixtures/code/js/vulnerable-sqli/app.ts",
+          "line": 6,
+          "excerpt": "const sql = `SELECT * FROM users WHERE email = '${email}'`;",
+          "role": "sink",
+          "order": 1
+        },
+        {
+          "type": "poc",
+          "label": "executed payload",
+          "path": "tests/fixtures/code/js/vulnerable-sqli/app.ts",
+          "line": 6,
+          "excerpt": "' OR '1'='1",
+          "role": "source",
+          "order": 0
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "dynamic_verified",
+          "tool": "kuzushi",
+          "contributors": ["deterministic_tool", "dynamic_verified"]
+        },
+        "exploitability_status": "confirmed",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "Exploit payload was executed against the vulnerable query."
+        },
+        "confidence_reason": "Runtime confirmation showed attacker-controlled SQL changed query behavior."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-002",
+      "stable_key": "fixture:v1_2:go-ssrf-plausible",
+      "kind": "finding",
+      "severity": "high",
+      "type": "ssrf",
+      "title": "Go HTTP client fetches user-controlled URL",
+      "file": "tests/fixtures/code/go/vulnerable-ssrf/main.go",
+      "line": 19,
+      "rule_id": "joern.go.ssrf",
+      "cwe": "CWE-918",
+      "verdict": "needs_review",
+      "confidence": "high",
+      "source_tool": "joern",
+      "message": "User-controlled target reaches http.Get without host allowlisting.",
+      "in_diff": true,
+      "verification_level": 1,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N",
+      "cvss_score": 9.3,
+      "chain_id": "chain-metadata-ssrf",
+      "chain_role": "sink",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "unsafe fetch",
+          "path": "tests/fixtures/code/go/vulnerable-ssrf/main.go",
+          "line": 19,
+          "excerpt": "resp, err := http.Get(target)",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "joern",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "plausible",
+        "false_positive_risk": {
+          "level": "medium",
+          "reason": "Dataflow is present but network egress controls were not checked."
+        },
+        "confidence_reason": "CPG dataflow connects request input to an outbound HTTP sink."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-003",
+      "stable_key": "fixture:v1_2:python-ssrf-auth",
+      "kind": "finding",
+      "severity": "high",
+      "type": "ssrf",
+      "title": "Authenticated image proxy can fetch internal hosts",
+      "file": "tests/fixtures/code/python/vulnerable-ssrf/app.py",
+      "line": 8,
+      "rule_id": "full-audit.python.ssrf",
+      "cwe": "CWE-918",
+      "verdict": "needs_review",
+      "confidence": "medium",
+      "source_tool": "full-audit",
+      "message": "The image proxy accepts arbitrary URLs after user login.",
+      "in_diff": false,
+      "verification_level": 2,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:C/C:H/I:N/A:N",
+      "cvss_score": 8.5,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "proxy fetch",
+          "path": "tests/fixtures/code/python/vulnerable-ssrf/app.py",
+          "line": 8,
+          "excerpt": "return requests.get(url).text",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "claude_analysis": {
+        "verdict": "verified",
+        "confidence": "medium",
+        "reasoning": "Authenticated users can supply the URL, but exploitation requires a valid session.",
+        "exploitable": null
+      },
+      "trust_metadata": {
+        "provenance": {
+          "origin": "llm_analysis",
+          "tool": "claude",
+          "contributors": ["deterministic_tool", "llm_analysis"]
+        },
+        "exploitability_status": "requires_auth",
+        "false_positive_risk": {
+          "level": "medium",
+          "reason": "Authentication requirement reduces reachability but not impact."
+        },
+        "confidence_reason": "Semantic review confirmed user influence after authentication."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-004",
+      "stable_key": "fixture:v1_2:php-sqli-blocked",
+      "kind": "finding",
+      "severity": "medium",
+      "type": "sql-injection",
+      "title": "SQL injection candidate blocked by prepared statement",
+      "file": "tests/fixtures/code/php/safe-sqli/index.php",
+      "line": 5,
+      "rule_id": "semgrep.php.sqli",
+      "cwe": "CWE-89",
+      "verdict": "false_positive",
+      "confidence": "low",
+      "source_tool": "semgrep",
+      "message": "A taint pattern matched near a prepared statement and was retained for reporting QA.",
+      "fp_indicator": "prepared statement control prevents interpolation",
+      "in_diff": false,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "prepared statement",
+          "path": "tests/fixtures/code/php/safe-sqli/index.php",
+          "line": 5,
+          "excerpt": "$stmt = $db->prepare('SELECT * FROM users WHERE id = ?');",
+          "role": "control",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "human_review",
+          "tool": "review-ledger",
+          "contributors": ["deterministic_tool", "human_review"]
+        },
+        "exploitability_status": "blocked_by_control",
+        "false_positive_risk": {
+          "level": "high",
+          "reason": "A prepared statement blocks the matched dataflow."
+        },
+        "confidence_reason": "Manual review retained the case to exercise false-positive reporting."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-005",
+      "stable_key": "fixture:v1_2:java-cmdi-unreachable",
+      "kind": "finding",
+      "severity": "medium",
+      "type": "command-injection",
+      "title": "Command execution path is unreachable in production profile",
+      "file": "tests/fixtures/code/java/safe-cmdi/App.java",
+      "line": 12,
+      "rule_id": "semgrep.java.cmdi",
+      "cwe": "CWE-78",
+      "verdict": "false_positive",
+      "confidence": "medium",
+      "source_tool": "semgrep",
+      "message": "The command sink is guarded by a disabled development flag.",
+      "fp_indicator": "unreachable production branch",
+      "in_diff": false,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "disabled branch",
+          "path": "tests/fixtures/code/java/safe-cmdi/App.java",
+          "line": 12,
+          "excerpt": "if (devMode) Runtime.getRuntime().exec(input);",
+          "role": "control",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "mixed",
+          "tool": "claude",
+          "contributors": ["deterministic_tool", "llm_analysis", "human_review"]
+        },
+        "exploitability_status": "unreachable",
+        "false_positive_risk": {
+          "level": "high",
+          "reason": "The sink is behind a disabled profile gate."
+        },
+        "confidence_reason": "Review combined pattern output and profile analysis."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-006",
+      "stable_key": "fixture:v1_2:ruby-secret-unknown",
+      "kind": "finding",
+      "severity": "low",
+      "type": "hardcoded-secret",
+      "title": "Potential placeholder API token",
+      "file": "tests/fixtures/code/ruby/unsupported.rb",
+      "line": 2,
+      "rule_id": "semgrep.generic.secret",
+      "cwe": "CWE-798",
+      "verdict": "needs_review",
+      "confidence": "low",
+      "source_tool": "semgrep",
+      "message": "A token-like literal was found in a fixture file.",
+      "in_diff": false,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "token literal",
+          "path": "tests/fixtures/code/ruby/unsupported.rb",
+          "line": 2,
+          "excerpt": "TOKEN = 'example-token'",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "semgrep",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "unknown",
+        "false_positive_risk": {
+          "level": "unknown",
+          "reason": "Fixture context does not identify whether the value is live."
+        },
+        "confidence_reason": "Pattern match only; no validation source was available."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-007",
+      "stable_key": "fixture:v1_2:solidity-reentrancy",
+      "kind": "finding",
+      "severity": "critical",
+      "type": "reentrancy",
+      "title": "External call before balance update",
+      "file": "tests/fixtures/code/solidity/reentrancy/Vault.sol",
+      "line": 13,
+      "rule_id": "slither.reentrancy",
+      "cwe": "CWE-841",
+      "verdict": "verified",
+      "confidence": "high",
+      "source_tool": "slither",
+      "message": "Withdrawal sends ether before updating the caller balance.",
+      "in_diff": true,
+      "verification_level": 3,
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N",
+      "cvss_score": 7.5,
+      "chain_id": "chain-wallet-drain",
+      "chain_role": "sink",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "external call",
+          "path": "tests/fixtures/code/solidity/reentrancy/Vault.sol",
+          "line": 13,
+          "excerpt": "(bool ok, ) = msg.sender.call{value: amount}(\"\");",
+          "role": "sink",
+          "order": 1
+        },
+        {
+          "type": "poc",
+          "label": "generated exploit outline",
+          "path": "tests/fixtures/code/solidity/reentrancy/Vault.sol",
+          "line": 13,
+          "excerpt": "fallback() external payable { vault.withdraw(1 ether); }",
+          "role": "source",
+          "order": 0
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "mixed",
+          "tool": "slither+claude",
+          "contributors": ["deterministic_tool", "llm_analysis"]
+        },
+        "exploitability_status": "confirmed",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "A PoC sketch demonstrates reentry before state update."
+        },
+        "confidence_reason": "Static detection and exploit sketch agree on the same state-ordering flaw."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-008",
+      "stable_key": "fixture:v1_2:solidity-overflow",
+      "kind": "finding",
+      "severity": "medium",
+      "type": "integer-overflow",
+      "title": "Unchecked arithmetic in token mint path",
+      "file": "tests/fixtures/code/solidity/overflow/Token.sol",
+      "line": 11,
+      "rule_id": "slither.integer-overflow",
+      "cwe": "CWE-190",
+      "verdict": "needs_review",
+      "confidence": "medium",
+      "source_tool": "slither",
+      "message": "A mint path uses unchecked arithmetic and depends on compiler settings.",
+      "in_diff": true,
+      "verification_level": 1,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "unchecked addition",
+          "path": "tests/fixtures/code/solidity/overflow/Token.sol",
+          "line": 11,
+          "excerpt": "balances[to] += amount;",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "slither",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "plausible",
+        "false_positive_risk": {
+          "level": "medium",
+          "reason": "Compiler version and unchecked block context need review."
+        },
+        "confidence_reason": "Static analysis found the arithmetic pattern, but project compiler constraints matter."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-009",
+      "stable_key": "fixture:v1_2:nextjs-redirect-hotspot",
+      "kind": "hotspot",
+      "severity": "high",
+      "type": "framework-redirect",
+      "title": "Next.js redirect audit pivot",
+      "file": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+      "line": 4,
+      "rule_id": "full-audit.nextjs.redirect",
+      "cwe": "CWE-918",
+      "verdict": "unverified",
+      "confidence": "medium",
+      "source_tool": "full-audit",
+      "message": "redirect() exists in a Server Action and needs attacker-control confirmation.",
+      "in_diff": true,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "server action redirect",
+          "path": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+          "line": 4,
+          "excerpt": "redirect(target);",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "llm_analysis",
+          "tool": "claude",
+          "contributors": ["llm_analysis"]
+        },
+        "exploitability_status": "unknown",
+        "false_positive_risk": {
+          "level": "medium",
+          "reason": "Framework pivot requires source tracing before promotion."
+        },
+        "confidence_reason": "Application understanding flagged the framework sink for reviewer follow-up."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-010",
+      "stable_key": "fixture:v1_2:python-ssti",
+      "kind": "finding",
+      "severity": "high",
+      "type": "ssti",
+      "title": "Template rendering accepts user-controlled expression",
+      "file": "tests/fixtures/code/python/vulnerable-ssrf/app.py",
+      "line": 14,
+      "rule_id": "semgrep.python.ssti",
+      "cwe": "CWE-1336",
+      "verdict": "verified",
+      "confidence": "high",
+      "source_tool": "semgrep",
+      "message": "User input reaches a template renderer without escaping.",
+      "in_diff": true,
+      "verification_level": 2,
+      "chain_id": "chain-account-takeover",
+      "chain_role": "pivot",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "template render",
+          "path": "tests/fixtures/code/python/vulnerable-ssrf/app.py",
+          "line": 14,
+          "excerpt": "return Template(body).render()",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "mixed",
+          "tool": "semgrep+claude",
+          "contributors": ["deterministic_tool", "llm_analysis"]
+        },
+        "exploitability_status": "plausible",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "The template sink is reachable from request input."
+        },
+        "confidence_reason": "Pattern and semantic review agreed the rendering path is attacker-controlled."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-011",
+      "stable_key": "fixture:v1_2:csharp-idor",
+      "kind": "finding",
+      "severity": "medium",
+      "type": "idor",
+      "title": "Account document lookup lacks ownership check",
+      "file": "src/Controllers/DocumentsController.cs",
+      "line": 42,
+      "rule_id": "full-audit.dotnet.idor",
+      "cwe": "CWE-639",
+      "verdict": "needs_review",
+      "confidence": "medium",
+      "source_tool": "full-audit",
+      "message": "The document identifier is used for lookup before an ownership guard is visible.",
+      "in_diff": false,
+      "verification_level": 2,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "document lookup",
+          "path": "src/Controllers/DocumentsController.cs",
+          "line": 42,
+          "excerpt": "var document = await db.Documents.FindAsync(id);",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "human_review",
+          "tool": "review-ledger",
+          "contributors": ["llm_analysis", "human_review"]
+        },
+        "exploitability_status": "requires_auth",
+        "false_positive_risk": {
+          "level": "medium",
+          "reason": "The path requires authentication and policy middleware may exist outside the file."
+        },
+        "confidence_reason": "Reviewer marked the lookup as a likely authorization issue pending route policy inspection."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-012",
+      "stable_key": "fixture:v1_2:rust-path-traversal",
+      "kind": "finding",
+      "severity": "high",
+      "type": "path-traversal",
+      "title": "Download endpoint joins user-controlled path",
+      "file": "src/download.rs",
+      "line": 27,
+      "rule_id": "semgrep.rust.path-traversal",
+      "cwe": "CWE-22",
+      "verdict": "verified",
+      "confidence": "high",
+      "source_tool": "semgrep",
+      "message": "The download path is joined without canonicalization or base-directory enforcement.",
+      "in_diff": true,
+      "verification_level": 1,
+      "chain_id": "chain-file-read",
+      "chain_role": "sink",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "path join",
+          "path": "src/download.rs",
+          "line": 27,
+          "excerpt": "let path = base.join(req.query.path);",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "semgrep",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "plausible",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "The source and sink are in the same handler with no canonicalization evidence."
+        },
+        "confidence_reason": "Rule evidence shows direct user path use in a file read workflow."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-013",
+      "stable_key": "fixture:v1_2:go-debug-hotspot",
+      "kind": "hotspot",
+      "severity": "medium",
+      "type": "debug-endpoint",
+      "title": "Debug endpoint is exposed by router",
+      "file": "cmd/server/routes.go",
+      "line": 31,
+      "rule_id": "full-audit.go.debug-endpoint",
+      "cwe": "CWE-489",
+      "verdict": "unverified",
+      "confidence": "low",
+      "source_tool": "full-audit",
+      "message": "A debug route is registered; environment exposure is not yet known.",
+      "in_diff": false,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "debug route",
+          "path": "cmd/server/routes.go",
+          "line": 31,
+          "excerpt": "router.GET(\"/debug/vars\", expvar.Handler())",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "full-audit",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "unknown",
+        "false_positive_risk": {
+          "level": "unknown",
+          "reason": "Deployment routing and environment gating are not present in the fixture."
+        },
+        "confidence_reason": "Hotspot retained as an investigation lead."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-014",
+      "stable_key": "fixture:v1_2:ts-xss-info",
+      "kind": "finding",
+      "severity": "info",
+      "type": "xss",
+      "title": "Escaped HTML sink should stay visible in QA",
+      "file": "tests/fixtures/code/js/safe-xss/view.ts",
+      "line": 3,
+      "rule_id": "semgrep.js.xss",
+      "cwe": "CWE-79",
+      "verdict": "false_positive",
+      "confidence": "low",
+      "source_tool": "semgrep",
+      "message": "The sink is escaped but retained so info severity rendering remains covered.",
+      "fp_indicator": "HTML escaping control is present",
+      "in_diff": false,
+      "verification_level": 0,
+      "evidence": [
+        {
+          "type": "code",
+          "label": "escaped sink",
+          "path": "tests/fixtures/code/js/safe-xss/view.ts",
+          "line": 3,
+          "excerpt": "return escapeHtml(input);",
+          "role": "control",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "human_review",
+          "tool": "review-ledger",
+          "contributors": ["deterministic_tool", "human_review"]
+        },
+        "exploitability_status": "blocked_by_control",
+        "false_positive_risk": {
+          "level": "high",
+          "reason": "Escaping control is present at the sink."
+        },
+        "confidence_reason": "Human review confirmed the sanitizer blocks script execution."
+      }
+    },
+    {
+      "id": "VSCOUT-QA-015",
+      "stable_key": "fixture:v1_2:suppressed-secret",
+      "kind": "finding",
+      "severity": "critical",
+      "type": "hardcoded-secret",
+      "title": "Suppressed fixture secret",
+      "file": "config/test.env",
+      "line": 1,
+      "rule_id": "semgrep.generic.secret",
+      "cwe": "CWE-798",
+      "verdict": "needs_review",
+      "confidence": "low",
+      "source_tool": "semgrep",
+      "message": "A fixture-only secret is suppressed to verify summary and renderer behavior.",
+      "in_diff": false,
+      "verification_level": 0,
+      "suppressed": true,
+      "suppression_reason": "Fixture test secret excluded from release reporting.",
+      "evidence": [
+        {
+          "type": "code",
+          "label": "test secret",
+          "path": "config/test.env",
+          "line": 1,
+          "excerpt": "API_KEY=test-only-placeholder",
+          "role": "sink",
+          "order": 1
+        }
+      ],
+      "trust_metadata": {
+        "provenance": {
+          "origin": "deterministic_tool",
+          "tool": "semgrep",
+          "contributors": ["deterministic_tool"]
+        },
+        "exploitability_status": "unknown",
+        "false_positive_risk": {
+          "level": "high",
+          "reason": "Suppressed test fixture value."
+        },
+        "confidence_reason": "Suppression metadata should keep this out of summary counts."
+      }
+    }
+  ]
+}
