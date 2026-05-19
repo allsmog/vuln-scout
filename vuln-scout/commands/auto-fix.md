@@ -1,6 +1,6 @@
 ---
 name: auto-fix
-description: Auto-remediate verified findings by generating patches and optionally creating a PR
+description: "[experimental] Auto-remediate verified findings by generating patches and optionally creating a PR"
 argument-hint: "[--finding VSCOUT-XXXX] [--all-verified] [--severity critical,high] [--dry-run] [--create-pr]"
 allowed-tools:
   - Bash

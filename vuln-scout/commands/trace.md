@@ -1,6 +1,6 @@
 ---
 name: trace
-description: Trace data flow from sources to a specific sink with explicit evidence requirements
+description: "[beta] Trace data flow from sources to a specific sink with explicit evidence requirements"
 argument-hint: "<function_or_file:line> [--language js|ts|py|go|java] [--scope name]"
 allowed-tools:
   - Glob

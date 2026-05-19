@@ -1,6 +1,6 @@
 ---
 name: scan
-description: Run quick, deep, or audit scan profiles and emit a shared findings artifact
+description: "[beta] Run quick, deep, or audit scan profiles and emit a shared findings artifact"
 argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-claude-analysis]"
 allowed-tools:
   - Bash

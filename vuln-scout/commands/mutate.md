@@ -1,6 +1,6 @@
 ---
 name: mutate
-description: Security mutation testing -- weaken security controls and check if the scanner detects the resulting vulnerability
+description: "[experimental] Security mutation testing -- weaken security controls and check if the scanner detects the resulting vulnerability"
 argument-hint: "[path] [--dry-run] [--format md|json]"
 allowed-tools:
   - Bash

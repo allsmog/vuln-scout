@@ -1,6 +1,6 @@
 ---
 name: sinks
-description: Search for dangerous functions (sinks) and auto-discover output patterns
+description: "[beta] Search for dangerous functions (sinks) and auto-discover output patterns"
 argument-hint: "[language] [--discover] [--scope name]"
 allowed-tools:
   - Glob

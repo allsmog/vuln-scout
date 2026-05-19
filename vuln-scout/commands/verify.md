@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Verify findings with Joern plus code review and update the shared findings artifact
+description: "[stable] Verify findings with Joern plus code review and update the shared findings artifact"
 argument-hint: "<file:line> [--type sql-injection|command-injection|xss|path-traversal|ssrf|reentrancy|integer-overflow] [--all-critical] [--from file] [--no-cache] [--json]"
 allowed-tools:
   - Bash

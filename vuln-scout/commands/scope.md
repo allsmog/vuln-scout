@@ -1,6 +1,6 @@
 ---
 name: scope
-description: Prepare focused analysis scope for large codebases, list workspaces in monorepos
+description: "[stable] Prepare focused analysis scope for large codebases, list workspaces in monorepos"
 argument-hint: "<path> [--list] [--include patterns] [--exclude patterns] [--compress] [--name scope-name] [--force]"
 allowed-tools:
   - Bash

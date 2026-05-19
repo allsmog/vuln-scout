@@ -1,6 +1,6 @@
 ---
 name: propagate
-description: Pattern propagation - find all instances of a vulnerability pattern throughout the codebase
+description: "[beta] Pattern propagation - find all instances of a vulnerability pattern throughout the codebase"
 argument-hint: "<pattern-description> OR <file:line>"
 allowed-tools:
   - Glob

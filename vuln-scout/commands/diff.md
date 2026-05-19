@@ -1,6 +1,6 @@
 ---
 name: diff
-description: Compare security posture between two git refs to find new/fixed vulnerabilities and track regression
+description: "[stable] Compare security posture between two git refs to find new/fixed vulnerabilities and track regression"
 argument-hint: "<base-ref> [<head-ref>] [--tools semgrep] [--format md|json] [--fail-on-regression]"
 allowed-tools:
   - Bash

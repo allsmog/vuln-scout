@@ -1,6 +1,6 @@
 ---
 name: full-audit
-description: End-to-end security audit with hotspot-aware framework pivots, shared findings.json schema, and CI-friendly workflow flags
+description: "[stable] End-to-end security audit with hotspot-aware framework pivots, shared findings.json schema, and CI-friendly workflow flags"
 argument-hint: "[path] [--quick] [--top N] [--recent days] [--since-commit sha] [--diff-base ref] [--language go|ts|py|java] [--focus types] [--exclude paths] [--scope name] [--min-severity level] [--suppressions path] [--fail-on severity] [--verify-dynamic] [--json] [--no-interactive] [--incremental] [--generate-pocs] [--no-filter] [--no-claude-analysis]"
 allowed-tools:
   - Bash

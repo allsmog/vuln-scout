@@ -1,6 +1,6 @@
 ---
 name: report
-description: Generate report output from `.claude/findings.json` in markdown, json, SARIF, interactive HTML, or evidence bundle format
+description: "[stable] Generate report output from `.claude/findings.json` in markdown, json, SARIF, interactive HTML, or evidence bundle format"
 argument-hint: "[output_file] [--format md|json|sarif|html|bundle] [--suppressions path] [--fail-on severity]"
 allowed-tools:
   - Read

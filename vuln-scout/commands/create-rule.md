@@ -1,6 +1,6 @@
 ---
 name: create-rule
-description: Create a custom Semgrep detection rule from a confirmed vulnerability pattern
+description: "[experimental] Create a custom Semgrep detection rule from a confirmed vulnerability pattern"
 argument-hint: "<finding-id | file:line> [--output dir] [--test]"
 allowed-tools:
   - Bash

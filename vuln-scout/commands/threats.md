@@ -1,6 +1,6 @@
 ---
 name: threats
-description: Application understanding + threat modeling - maps architecture, generates DFDs, performs STRIDE analysis
+description: "[beta] Application understanding + threat modeling - maps architecture, generates DFDs, performs STRIDE analysis"
 argument-hint: "[--scope name] [--save filename.md] [--quick] [--diagram-only] [--stride-only]"
 allowed-tools:
   - Glob
