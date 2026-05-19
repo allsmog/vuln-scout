@@ -1,0 +1,34 @@
+[
+  {
+    "id": "trust-label-md-render",
+    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+    "renderer": "markdown",
+    "must_contain": ["Trust:", "FP-risk:", "Exploitability:", "## Trust Legend"],
+    "must_not_contain": ["KeyError", "undefined"]
+  },
+  {
+    "id": "bundle-completeness",
+    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+    "renderer": "bundle",
+    "expected_bundle_files": ["findings.json", "findings.sarif", "vex.json", "attestation.json", "README.md"],
+    "expected_vex_states": ["affected", "not_affected", "under_investigation"],
+    "attestation_must_contain_keys": ["trust_model_summary"]
+  },
+  {
+    "id": "pr-comment-trust-legend",
+    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+    "renderer": "pr_comment",
+    "must_contain": ["[T:", "FP:", "X:"],
+    "max_bytes": 56320
+  },
+  {
+    "id": "hotspot-to-finding-graduation",
+    "input_fixture": "tests/fixtures/artifacts/sample-graduation.json",
+    "assertion": "hotspot_with_verification_level_ge_3_becomes_finding"
+  },
+  {
+    "id": "migration-backfill-idempotent",
+    "input_fixture": "tests/fixtures/artifacts/sample-findings.json",
+    "assertion": "migrate_then_migrate_equal"
+  }
+]
