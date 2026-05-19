@@ -222,7 +222,7 @@ Each script proves or disproves a vulnerability through Code Property Graph data
 
 Solidity analysis is Slither-owned. Joern returns `na_cpg` for Solidity because the supported Joern frontends used by VulnScout do not include a Solidity CPG frontend.
 
-### 27 Auto-Activated Skills
+### 32 Auto-Activated Skills
 
 Skills activate automatically when relevant -- no configuration needed:
 
@@ -438,7 +438,7 @@ vuln-scout/
   agents/                       # 8 autonomous security analysts
   commands/                     # 13 slash commands
   hooks/                        # 4 background automation hooks
-  skills/                       # 27 auto-activated knowledge modules
+  skills/                       # 32 auto-activated modules
   evals/                        # Prompt/skill trigger and workflow eval definitions
   scripts/
     scan_orchestrator.py        # Main scan pipeline

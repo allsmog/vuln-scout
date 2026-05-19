@@ -13,7 +13,7 @@ This plugin guides security researchers through systematic source code analysis 
 
 ## Features
 
-### Skills (27 Auto-Activated)
+### Skills (32 Auto-Activated)
 
 **Core Analysis:**
 - **dangerous-functions** - Database of security-sensitive functions by language
