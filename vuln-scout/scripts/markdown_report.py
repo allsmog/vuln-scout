@@ -17,6 +17,11 @@ SEVERITY_BADGE = {
     "low": "![Low](https://img.shields.io/badge/-LOW-2563eb)",
     "info": "![Info](https://img.shields.io/badge/-INFO-6b7280)",
 }
+TRUST_BADGE_COLORS = {
+    "provenance": "0e7490",
+    "fp_risk": "6b7280",
+    "exploitability": "ea580c",
+}
 
 
 def generate(artifact: dict[str, Any]) -> str:
@@ -30,6 +35,7 @@ def generate(artifact: dict[str, Any]) -> str:
         _all_findings(artifact.get("findings", [])),
         _full_hotspot_list(artifact.get("findings", [])),
         _coverage_panel(artifact),
+        _trust_legend(),
         _next_actions(artifact),
     ]
     return "\n\n".join(s for s in sections if s)
@@ -167,6 +173,40 @@ def _tool_maturity(artifact: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _badge(label: str, value: str, color: str) -> str:
+    safe_label = label.replace("-", "--").replace("_", "__").replace(" ", "%20")
+    safe_value = value.replace("-", "--").replace("_", "__").replace(" ", "%20")
+    return f"![{label}: {value}](https://img.shields.io/badge/{safe_label}-{safe_value}-{color})"
+
+
+def _trust_badge(finding: dict[str, Any]) -> str:
+    trust = finding.get("trust_metadata") or {}
+    provenance = (trust.get("provenance") or {}).get("origin", "unknown")
+    fp_risk = (trust.get("false_positive_risk") or {}).get("level", "unknown")
+    exploitability = trust.get("exploitability_status", "unknown")
+    return " ".join([
+        _badge("Trust", str(provenance), TRUST_BADGE_COLORS["provenance"]),
+        _badge("FP-risk", str(fp_risk), TRUST_BADGE_COLORS["fp_risk"]),
+        _badge("Exploitability", str(exploitability), TRUST_BADGE_COLORS["exploitability"]),
+    ])
+
+
+def _confidence_reason_block(finding: dict[str, Any]) -> str:
+    trust = finding.get("trust_metadata") or {}
+    reason = trust.get("confidence_reason")
+    return f"*{reason}*" if reason else ""
+
+
+def _trust_legend() -> str:
+    return "\n".join([
+        "## Trust Legend",
+        "",
+        "- **Trust** identifies provenance: deterministic tool, LLM analysis, dynamic verification, human review, or mixed.",
+        "- **FP-risk** estimates false-positive likelihood from suppressions, semantic checks, and verification signals.",
+        "- **Exploitability** states whether the issue is confirmed, plausible, blocked by a control, auth-gated, unreachable, or unknown.",
+    ])
+
+
 # ---------------------------------------------------------------------------
 # Attack Chains (Mermaid diagrams)
 # ---------------------------------------------------------------------------
@@ -264,6 +304,10 @@ def _all_findings(findings: list[dict[str, Any]]) -> str:
         lines.append(f"**Location**: {file_loc}{cvss_str}{cwe_str}  ")
         confidence = f.get("confidence", "unknown")
         lines.append(f"**Verdict**: {verdict} | **Confidence**: {confidence} | **ID**: `{f.get('id', '?')}`\n")
+        lines.append(f"{_trust_badge(f)}\n")
+        confidence_reason = _confidence_reason_block(f)
+        if confidence_reason:
+            lines.append(f"{confidence_reason}\n")
 
         # Message / description
         message = f.get("message", "")
