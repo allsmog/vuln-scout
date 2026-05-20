@@ -53,13 +53,21 @@ def _prepare_workspace(fixture_path: str, plugin_enabled: bool) -> tuple[tempfil
 
 
 def _run_claude_prompt(claude_bin: str, prompt: str, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [claude_bin, "-p", prompt],
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+    try:
+        return subprocess.run(
+            [claude_bin, "-p", prompt],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        return subprocess.CompletedProcess(
+            [claude_bin, "-p", prompt],
+            124,
+            exc.stdout or "",
+            exc.stderr or f"timed out after {timeout} seconds",
+        )
 
 
 def _detect_targets(output: str, expected_targets: list[str]) -> list[str]:
@@ -146,12 +154,14 @@ def _score_verdict_quality(workspace: Path, case: dict[str, Any]) -> tuple[float
 
 def _run_trigger_case(case: dict[str, Any], claude_bin: str, timeout: int) -> dict[str, Any]:
     expected_targets = case.get("expected_targets", [])
+    must_not_targets = case.get("must_not_targets", [])
     fixture_path = case.get("fixture_path", ".")
     repeat = case.get("repeat", 3)
     results: dict[str, Any] = {"id": case["id"], "kind": "trigger", "modes": {}}
 
     for mode_name, plugin_enabled in (("plugin_enabled", True), ("baseline", False)):
         matches = 0
+        forbidden_matches = 0
         runs: list[dict[str, Any]] = []
         for _ in range(repeat):
             tempdir, workspace = _prepare_workspace(fixture_path, plugin_enabled=plugin_enabled)
@@ -161,19 +171,47 @@ def _run_trigger_case(case: dict[str, Any], claude_bin: str, timeout: int) -> di
                 tempdir.cleanup()
             output = f"{proc.stdout}\n{proc.stderr}"
             matched_targets = _detect_targets(output, expected_targets)
+            forbidden_targets = _detect_targets(output, must_not_targets)
             if matched_targets:
                 matches += 1
+            if forbidden_targets:
+                forbidden_matches += 1
             runs.append(
                 {
                     "returncode": proc.returncode,
                     "matched_targets": matched_targets,
+                    "forbidden_targets": forbidden_targets,
                 }
             )
         results["modes"][mode_name] = {
             "trigger_rate": matches / repeat,
+            "forbidden_rate": forbidden_matches / repeat,
             "runs": runs,
         }
     return results
+
+
+def _trigger_case_errors(result: dict[str, Any], case: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    plugin_result = result.get("modes", {}).get("plugin_enabled", {})
+    trigger_rate = float(plugin_result.get("trigger_rate", 0.0))
+    forbidden_rate = float(plugin_result.get("forbidden_rate", 0.0))
+    min_rate = float(case.get("min_trigger_rate", 0.67))
+
+    if case.get("should_trigger") and trigger_rate < min_rate:
+        errors.append(f"trigger_rate {trigger_rate:.2f} below required {min_rate:.2f}")
+    if not case.get("should_trigger") and trigger_rate > min_rate:
+        errors.append(f"unexpected trigger_rate {trigger_rate:.2f} above allowed {min_rate:.2f}")
+    if case.get("must_not_targets") and forbidden_rate > 0:
+        errors.append(f"forbidden target rate {forbidden_rate:.2f} above 0.00")
+
+    timed_out = [
+        run for run in plugin_result.get("runs", [])
+        if run.get("returncode") == 124
+    ]
+    if timed_out:
+        errors.append(f"{len(timed_out)} plugin-enabled run(s) timed out")
+    return errors
 
 
 def _run_workflow_case(case: dict[str, Any], claude_bin: str, timeout: int) -> dict[str, Any]:
@@ -425,7 +463,10 @@ def main() -> int:
     if "triggers" in selected_suites:
         trigger_cases = json.loads((evals_dir / "trigger_evals.json").read_text())
         for case in trigger_cases:
-            results.append(_run_trigger_case(case, args.claude_bin, args.timeout))
+            result = _run_trigger_case(case, args.claude_bin, args.timeout)
+            result["passed"] = not _trigger_case_errors(result, case)
+            result["errors"] = _trigger_case_errors(result, case)
+            results.append(result)
     if "workflows" in selected_suites:
         workflow_cases = json.loads((evals_dir / "workflow_evals.json").read_text())
         for case in workflow_cases:
@@ -460,8 +501,12 @@ def main() -> int:
         result for result in results
         if result.get("kind") == "report-quality" and not result.get("passed")
     ]
-    if failed_report_quality:
-        for result in failed_report_quality:
+    failed_triggers = [
+        result for result in results
+        if result.get("kind") == "trigger" and not result.get("passed", True)
+    ]
+    if failed_report_quality or failed_triggers:
+        for result in failed_report_quality + failed_triggers:
             for error in result.get("errors", []):
                 print(f"error: {result['id']}: {error}")
         return 1
