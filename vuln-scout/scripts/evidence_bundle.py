@@ -34,7 +34,7 @@ def _vex_state(finding: dict[str, Any]) -> str:
         return "affected"
     if exploitability in ("blocked_by_control", "unreachable"):
         return "not_affected"
-    if exploitability in ("plausible", "requires_auth", "unknown"):
+    if exploitability in ("plausible", "requires_auth"):
         return "under_investigation"
     if finding.get("dynamic_verified") or finding.get("verdict") == "verified":
         return "affected"

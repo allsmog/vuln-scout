@@ -111,6 +111,36 @@ class EvalValidationTests(unittest.TestCase):
                     "expected_subject_types": ["finding-verification"],
                 },
             ]))
+            (evals_dir / "report_quality_evals.json").write_text(json.dumps([
+                {
+                    "id": "trust-label-md-render",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "markdown",
+                    "must_contain": ["Trust:"],
+                },
+                {
+                    "id": "bundle-completeness",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "bundle",
+                    "expected_bundle_files": ["findings.json"],
+                },
+                {
+                    "id": "pr-comment-trust-legend",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "pr_comment",
+                    "must_contain": ["[T:"],
+                },
+                {
+                    "id": "hotspot-to-finding-graduation",
+                    "input_fixture": "tests/fixtures/artifacts/sample-graduation.json",
+                    "assertion": "hotspot_with_verification_level_ge_3_becomes_finding",
+                },
+                {
+                    "id": "migration-backfill-idempotent",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings.json",
+                    "assertion": "migrate_then_migrate_equal",
+                },
+            ]))
             (evals_dir / "benchmark.json").write_text("{}\n")
             (evals_dir / "benchmark.md").write_text("# Benchmark\n")
 

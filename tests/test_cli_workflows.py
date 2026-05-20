@@ -44,7 +44,8 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertIn("--custom-rules", help_text)
         self.assertIn("--extended-detectors", help_text)
         self.assertIn("--no-filter", help_text)
-        self.assertIn("--no-claude-analysis", help_text)
+        self.assertIn("--no-semantic-analysis", help_text)
+        self.assertNotIn("--no-claude-analysis", help_text)
         self.assertNotIn("--scope", help_text)
 
     def test_quick_profile_uses_bundled_local_rules(self):
@@ -337,6 +338,7 @@ class KuzushiModuleTests(unittest.TestCase):
             "vuln-scout:propagate",
             "vuln-scout:diff",
             "vuln-scout:create-rule",
+            "vuln-scout:org-memory-compile",
             "vuln-scout:mutate",
         ]))
 
