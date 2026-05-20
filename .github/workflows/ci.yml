@@ -44,6 +44,15 @@ jobs:
       - name: Validate prompt eval definitions
         run: python3 vuln-scout/scripts/validate_evals.py
 
+      - name: Run report-quality evals
+        run: python3 vuln-scout/scripts/run_prompt_evals.py --suite report-quality
+
+      - name: Verify migrated fixture no-op
+        run: |
+          cp tests/fixtures/artifacts/sample-findings-v1_2_0.json /tmp/vuln-scout-already-migrated.json
+          python3 vuln-scout/scripts/migrate_artifact.py /tmp/vuln-scout-already-migrated.json --in-place
+          cmp tests/fixtures/artifacts/sample-findings-v1_2_0.json /tmp/vuln-scout-already-migrated.json
+
       - name: Validate Kuzushi module import
         run: node -e "import('./kuzushi-module.js').then(() => console.log('import ok'))"
 
