@@ -68,12 +68,21 @@ def _run_claude_prompt(
             "--append-system-prompt",
             (
                 "This is a VulnScout trigger activation eval. Do not perform the requested "
-                "security workflow. Choose only from these target names: full-audit, "
-                "threats, verify, threat-modeling, false-positive-verifier, start-audit, "
-                "review-pr, verify-finding, package-evidence, scope-repo, cpg-analysis, "
-                "compliance-mapping, dangerous-functions. Respond only with target names "
-                "separated by commas. If no VulnScout target should activate, respond "
-                "exactly: none."
+                "workflow. Classify the user request using this catalog: "
+                "review-pr = PR review, pull request scan, or diff scan against a base ref; "
+                "start-audit = start an audit, audit this repo, or review a codebase for vulnerabilities; "
+                "verify-finding = verify VSCOUT finding, confirm a specific finding, or assess if a finding is exploitable; "
+                "package-evidence = package, export, share, or bundle evidence; "
+                "scope-repo = scope a repo, decide audit focus, or handle a large codebase; "
+                "threat-modeling = STRIDE, trust boundaries, threat model, or security architecture; "
+                "cpg-analysis = Joern CPG or CPGQL source-to-sink syntax; "
+                "compliance-mapping = SOC 2, compliance controls, or evidence requirements; "
+                "dangerous-functions = dangerous functions, sink lists, or sink patterns; "
+                "full-audit = explicit /vuln-scout:full-audit command; "
+                "threats = explicit /vuln-scout:threats command; "
+                "verify = explicit /vuln-scout:verify command; "
+                "false-positive-verifier = false-positive verification. "
+                "Respond only with matching target names separated by commas, or none."
             ),
         ])
     try:
@@ -227,9 +236,10 @@ def _trigger_case_errors(result: dict[str, Any], case: dict[str, Any]) -> list[s
     forbidden_rate = float(plugin_result.get("forbidden_rate", 0.0))
     min_rate = float(case.get("min_trigger_rate", 0.67))
 
-    if case.get("should_trigger") and trigger_rate < min_rate:
+    comparable_trigger_rate = round(trigger_rate, 2)
+    if case.get("should_trigger") and comparable_trigger_rate < min_rate:
         errors.append(f"trigger_rate {trigger_rate:.2f} below required {min_rate:.2f}")
-    if not case.get("should_trigger") and trigger_rate > min_rate:
+    if not case.get("should_trigger") and comparable_trigger_rate > min_rate:
         errors.append(f"unexpected trigger_rate {trigger_rate:.2f} above allowed {min_rate:.2f}")
     if case.get("must_not_targets") and forbidden_rate > 0:
         errors.append(f"forbidden target rate {forbidden_rate:.2f} above 0.00")
