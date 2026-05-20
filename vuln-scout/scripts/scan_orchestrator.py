@@ -523,7 +523,7 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
                    chains: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     apply_verification_levels(findings)
     for finding in findings:
-        finding["trust_metadata"] = build_trust_metadata(finding)
+        finding.setdefault("trust_metadata", build_trust_metadata(finding))
     source_tool = tools_used[0] if len(tools_used) == 1 else "multi"
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -840,6 +840,7 @@ def main() -> int:
 
     # Stage 4g: Apply feedback-based rule calibration
     feedback.apply_rule_calibration(findings)
+    feedback.apply_org_memory_rules(findings)
 
     # Recompute summary after all adjustments
     # (re-assign IDs since calibration may have changed kinds)
