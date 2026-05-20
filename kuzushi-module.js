@@ -24,6 +24,7 @@ const TOOL_MATURITY = {
   "vuln-scout:trace": "beta",
   "vuln-scout:propagate": "beta",
   "vuln-scout:create-rule": "experimental",
+  "vuln-scout:org-memory-compile": "experimental",
   "vuln-scout:mutate": "experimental",
   "vuln-scout:fix": "experimental",
 };
@@ -92,7 +93,13 @@ function createTool(cmdName, toolName, description, inputSchema) {
           toolName,
         };
       } catch (err) {
-        return { ok: false, output: `VulnScout error: ${err.message ?? err}` };
+        return {
+          ok: false,
+          output: `VulnScout error: ${err.message ?? err}`,
+          artifacts: collectArtifacts(target, params),
+          maturity: TOOL_MATURITY[toolName],
+          toolName,
+        };
       }
     },
   };
@@ -221,6 +228,17 @@ export default {
         properties: {
           target: { type: "string", description: "Path to the repository." },
           finding: { type: "string", description: "Finding ID, location, or vulnerability pattern." },
+        },
+        required: ["target"],
+      }),
+    createTool("org-memory-compile", "vuln-scout:org-memory-compile",
+      "Compile human-reviewed scan history into local organization memory.",
+      {
+        type: "object",
+        properties: {
+          target: { type: "string", description: "Path to the repository." },
+          privacy: { type: "string", enum: ["open", "hashed", "strict"], description: "Org memory privacy mode." },
+          dryRun: { type: "boolean", description: "Print proposed memory without writing files." },
         },
         required: ["target"],
       }),

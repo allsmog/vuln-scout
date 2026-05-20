@@ -18,6 +18,7 @@ EXPECTED_TOOLS = {
     "vuln-scout:propagate",
     "vuln-scout:diff",
     "vuln-scout:create-rule",
+    "vuln-scout:org-memory-compile",
     "vuln-scout:mutate",
 }
 
