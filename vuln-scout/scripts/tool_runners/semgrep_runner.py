@@ -152,6 +152,8 @@ def run(
         for ruleset in rulesets_for_frameworks(frameworks):
             cmd.extend(["--config", ruleset])
 
+    if uses_local_config:
+        cmd.append("--no-git-ignore")
     cmd.extend(["--severity", "ERROR", "--severity", "WARNING", "--json", target])
     for pattern in (exclude or []):
         cmd.extend(["--exclude", pattern])
@@ -175,7 +177,10 @@ def run(
         # name changed).  Retry with just the base config.
         if frameworks and not uses_local_config:
             log.warning("semgrep exit %d with framework rules, retrying with base config only", result.returncode)
-            cmd_fallback = ["semgrep", "--config", rules, "--severity", "ERROR", "--severity", "WARNING", "--json", target]
+            cmd_fallback = ["semgrep", "--config", rules]
+            if uses_local_config:
+                cmd_fallback.append("--no-git-ignore")
+            cmd_fallback.extend(["--severity", "ERROR", "--severity", "WARNING", "--json", target])
             for pattern in (exclude or []):
                 cmd_fallback.extend(["--exclude", pattern])
             for baseline in ["node_modules", "vendor", "dist", "__pycache__"]:
