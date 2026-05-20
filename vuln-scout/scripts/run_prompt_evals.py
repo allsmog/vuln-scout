@@ -52,10 +52,30 @@ def _prepare_workspace(fixture_path: str, plugin_enabled: bool) -> tuple[tempfil
     return tempdir, workspace_root
 
 
-def _run_claude_prompt(claude_bin: str, prompt: str, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+def _run_claude_prompt(
+    claude_bin: str,
+    prompt: str,
+    cwd: Path,
+    timeout: int,
+    *,
+    activation_only: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    command = [claude_bin, "-p", prompt]
+    if activation_only:
+        command.extend([
+            "--output-format",
+            "json",
+            "--append-system-prompt",
+            (
+                "This is a VulnScout trigger activation eval. Do not perform the requested "
+                "security workflow. Respond only with the command, agent, or skill target "
+                "names that should activate, separated by commas. If no VulnScout target "
+                "should activate, respond exactly: none."
+            ),
+        ])
     try:
         return subprocess.run(
-            [claude_bin, "-p", prompt],
+            command,
             cwd=str(cwd),
             capture_output=True,
             text=True,
@@ -63,7 +83,7 @@ def _run_claude_prompt(claude_bin: str, prompt: str, cwd: Path, timeout: int) ->
         )
     except subprocess.TimeoutExpired as exc:
         return subprocess.CompletedProcess(
-            [claude_bin, "-p", prompt],
+            command,
             124,
             exc.stdout or "",
             exc.stderr or f"timed out after {timeout} seconds",
@@ -166,7 +186,13 @@ def _run_trigger_case(case: dict[str, Any], claude_bin: str, timeout: int) -> di
         for _ in range(repeat):
             tempdir, workspace = _prepare_workspace(fixture_path, plugin_enabled=plugin_enabled)
             try:
-                proc = _run_claude_prompt(claude_bin, case["query"], workspace, timeout)
+                proc = _run_claude_prompt(
+                    claude_bin,
+                    case["query"],
+                    workspace,
+                    timeout,
+                    activation_only=True,
+                )
             finally:
                 tempdir.cleanup()
             output = f"{proc.stdout}\n{proc.stderr}"
