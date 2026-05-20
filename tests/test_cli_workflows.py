@@ -366,6 +366,8 @@ class PackageContentsTests(unittest.TestCase):
         self.assertIn("docs/feature-maturity.md", paths)
         self.assertIn("docs/ci/github-actions.yml", paths)
         self.assertNotIn("tests/test_cli_workflows.py", paths)
+        self.assertFalse(any("/.claude/" in path for path in paths))
+        self.assertFalse(any("/.vuln-scout/" in path for path in paths))
         self.assertFalse(any("__pycache__" in path for path in paths))
         self.assertFalse(any(".pytest_cache" in path for path in paths))
 

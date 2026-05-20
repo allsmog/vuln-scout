@@ -11,6 +11,8 @@
     "LICENSE",
     "README.md",
     "demo/**",
+    "!demo/**/.claude/**",
+    "!demo/**/.vuln-scout/**",
     "docs/**",
     "kuzushi-module.js",
     "module.manifest.json",
