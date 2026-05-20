@@ -44,6 +44,15 @@ jobs:
       - name: Validate prompt eval definitions
         run: python3 vuln-scout/scripts/validate_evals.py
 
+      - name: Validate Claude plugin install
+        continue-on-error: true
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            claude plugin validate ./vuln-scout
+          else
+            echo "Claude CLI unavailable; skipping plugin install validation"
+          fi
+
       - name: Run report-quality evals
         run: python3 vuln-scout/scripts/run_prompt_evals.py --suite report-quality
 
