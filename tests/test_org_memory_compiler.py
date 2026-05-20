@@ -82,6 +82,22 @@ class OrgMemoryCompilerTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 2)
             self.assertIn("refusing to overwrite strict", proc.stderr)
 
+    def test_default_write_adds_org_memory_gitignore_entry(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            history = root / ".claude" / "scan-history"
+            history.mkdir(parents=True)
+            (history / "scan-001.json").write_text(json.dumps([_record(1), _record(2), _record(3)]))
+
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT), "--project-root", str(root)],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn(".vuln-scout/org-memory/", (root / ".gitignore").read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

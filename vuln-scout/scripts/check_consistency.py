@@ -90,7 +90,7 @@ def validate() -> list[str]:
     if ".claude-plugin/plugin.json" not in readmes["agents"]:
         errors.append("AGENTS.md must describe the Claude-first plugin layout")
 
-    expected_counts = {"commands": 13, "agents": 8, "skills": counts["skills"]}
+    expected_counts = {"commands": 14, "agents": 8, "skills": counts["skills"]}
     if counts["commands"] != expected_counts["commands"]:
         errors.append(f"commands count drifted: expected {expected_counts['commands']}, got {counts['commands']}")
     if counts["agents"] != expected_counts["agents"]:
@@ -137,9 +137,20 @@ def validate() -> list[str]:
         elif f"references/full-audit/{fragment}" not in _read(PLUGIN_ROOT / "commands" / "full-audit.md"):
             errors.append(f"full-audit.md must reference references/full-audit/{fragment}")
 
-    for eval_artifact in ("trigger_evals.json", "workflow_evals.json", "benchmark.json", "benchmark.md"):
+    for eval_artifact in (
+        "trigger_evals.json",
+        "workflow_evals.json",
+        "report_quality_evals.json",
+        "benchmark.json",
+        "benchmark.md",
+    ):
         if not (PLUGIN_ROOT / "evals" / eval_artifact).exists():
             errors.append(f"evals/{eval_artifact} is missing")
+
+    if not (PLUGIN_ROOT / "scripts" / "org_memory_compiler.py").exists():
+        errors.append("scripts/org_memory_compiler.py is missing")
+    if not (PLUGIN_ROOT / "commands" / "org-memory-compile.md").exists():
+        errors.append("commands/org-memory-compile.md is missing")
 
     for hook_name in (
         "handoff-app-mapper.md",

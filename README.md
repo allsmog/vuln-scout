@@ -69,7 +69,7 @@ npm install @kuzushi/vuln-scout
 | Scope repo | `/vuln-scout:scope` | [First run](docs/workflows/first-run.md) |
 | Diff review | `/vuln-scout:diff` | [PR review](docs/workflows/pr-review.md) |
 
-### Commands (13 total)
+### Commands (14 total)
 
 <details>
 <summary>Advanced commands</summary>
@@ -82,6 +82,7 @@ npm install @kuzushi/vuln-scout
 | `/vuln-scout:trace` | beta | Trace source-to-sink data flow |
 | `/vuln-scout:propagate` | beta | Find related instances of a confirmed pattern |
 | `/vuln-scout:create-rule` | experimental | Generate custom Semgrep rules |
+| `/vuln-scout:org-memory-compile` | experimental | Compile human-reviewed org memory |
 | `/vuln-scout:mutate` | experimental | Mutation-test security controls |
 | `/vuln-scout:auto-fix` | experimental | Generate patches for verified findings |
 

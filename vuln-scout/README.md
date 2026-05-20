@@ -14,7 +14,7 @@ Manifest: `vuln-scout/.claude-plugin/plugin.json`
 | `/vuln-scout:scope` | stable | `<path>`, `--list`, `--include`, `--exclude`, `--compress`, `--name` |
 | `/vuln-scout:diff` | stable | `<base-ref>`, `[head-ref]`, `--tools`, `--format`, `--fail-on-regression` |
 
-### Commands (13 total)
+### Commands (14 total)
 
 | Command | Maturity | Purpose |
 |---|---|---|
@@ -24,6 +24,7 @@ Manifest: `vuln-scout/.claude-plugin/plugin.json`
 | `/vuln-scout:trace` | beta | Trace source-to-sink evidence |
 | `/vuln-scout:propagate` | beta | Find related vulnerable patterns |
 | `/vuln-scout:create-rule` | experimental | Create custom Semgrep rules from confirmed patterns |
+| `/vuln-scout:org-memory-compile` | experimental | Compile human-reviewed org memory |
 | `/vuln-scout:mutate` | experimental | Mutation-test security controls |
 | `/vuln-scout:auto-fix` | experimental | Generate patches for verified findings |
 

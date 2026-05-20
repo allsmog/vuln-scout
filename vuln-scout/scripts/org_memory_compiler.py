@@ -405,6 +405,19 @@ def _write_outputs(output_dir: Path, compiled: dict[str, Any], privacy: str) -> 
     manifest_path.write_text(json.dumps(_manifest(output_dir, privacy, written), indent=2, sort_keys=True) + "\n")
 
 
+def _ensure_gitignore(project_root: Path) -> None:
+    gitignore_path = project_root / ".gitignore"
+    entry = ".vuln-scout/org-memory/"
+    if gitignore_path.exists():
+        lines = gitignore_path.read_text().splitlines()
+    else:
+        lines = []
+    if entry in lines:
+        return
+    separator = "\n" if lines else ""
+    gitignore_path.write_text("\n".join(lines) + separator + entry + "\n")
+
+
 def _render_dry_run(compiled: dict[str, Any]) -> str:
     return _dump_yaml({
         "accepted_suppressions": compiled["accepted_suppressions"],
@@ -421,6 +434,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--privacy", choices=sorted(VALID_PRIVACY_MODES), default="open")
     parser.add_argument("--dry-run", action="store_true", help="Print proposed org memory without writing files")
     parser.add_argument("--force", action="store_true", help="Allow privacy-mode downgrades when rewriting manifest")
+    parser.add_argument(
+        "--allow-commit",
+        action="store_true",
+        help="Do not add the default .gitignore entry for .vuln-scout/org-memory/",
+    )
     return parser
 
 
@@ -441,6 +459,8 @@ def main() -> int:
         return 0
 
     _write_outputs(output_dir, compiled, args.privacy)
+    if not args.allow_commit:
+        _ensure_gitignore(project_root)
     print(f"ok: wrote org memory to {output_dir}")
     return 0
 
