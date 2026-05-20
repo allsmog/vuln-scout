@@ -68,9 +68,12 @@ def _run_claude_prompt(
             "--append-system-prompt",
             (
                 "This is a VulnScout trigger activation eval. Do not perform the requested "
-                "security workflow. Respond only with the command, agent, or skill target "
-                "names that should activate, separated by commas. If no VulnScout target "
-                "should activate, respond exactly: none."
+                "security workflow. Choose only from these target names: full-audit, "
+                "threats, verify, threat-modeling, false-positive-verifier, start-audit, "
+                "review-pr, verify-finding, package-evidence, scope-repo, cpg-analysis, "
+                "compliance-mapping, dangerous-functions. Respond only with target names "
+                "separated by commas. If no VulnScout target should activate, respond "
+                "exactly: none."
             ),
         ])
     try:
