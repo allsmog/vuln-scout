@@ -2,7 +2,8 @@
   "generated_at": null,
   "summary": {
     "trigger_cases": 0,
-    "workflow_cases": 0
+    "workflow_cases": 0,
+    "report_quality_cases": 0
   },
   "results": []
 }

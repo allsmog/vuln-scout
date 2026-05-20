@@ -18,7 +18,14 @@ EVALS_DIR = PLUGIN_ROOT / "evals"
 sys.path.insert(0, str(PLUGIN_ROOT / "scripts"))
 
 import prompt_artifacts
+import pr_comment
 import validate_evals
+from migrate_artifact import migrate_to_1_2_0
+
+
+CLAUDE_SUITES = {"triggers", "workflows"}
+LOCAL_SUITES = {"report-quality"}
+SUITES = CLAUDE_SUITES | LOCAL_SUITES
 
 
 def _normalize_identifier(value: str) -> str:
@@ -198,6 +205,151 @@ def _run_workflow_case(case: dict[str, Any], claude_bin: str, timeout: int) -> d
     return results
 
 
+def _run_report_renderer(case: dict[str, Any], timeout: int) -> dict[str, Any]:
+    renderer = case["renderer"]
+    fixture_path = ROOT / case["input_fixture"]
+    errors: list[str] = []
+    details: dict[str, Any] = {}
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        if renderer == "bundle":
+            output_path = tmp_path / "bundle"
+            cmd = [
+                sys.executable,
+                str(PLUGIN_ROOT / "scripts" / "report.py"),
+                str(fixture_path),
+                "--format",
+                "bundle",
+                "-o",
+                str(output_path),
+            ]
+        elif renderer == "pr_comment":
+            artifact = json.loads(fixture_path.read_text())
+            output = pr_comment.generate(artifact)
+            output_path = tmp_path / "pr-comment.md"
+            output_path.write_text(output)
+            proc = subprocess.CompletedProcess(cmd := ["pr_comment.generate"], 0, "", "")
+        else:
+            format_name = {"markdown": "md", "html": "html", "sarif": "sarif"}[renderer]
+            suffix = {"markdown": ".md", "html": ".html", "sarif": ".sarif"}[renderer]
+            output_path = tmp_path / f"report{suffix}"
+            cmd = [
+                sys.executable,
+                str(PLUGIN_ROOT / "scripts" / "report.py"),
+                str(fixture_path),
+                "--format",
+                format_name,
+                "-o",
+                str(output_path),
+            ]
+
+        if renderer != "pr_comment":
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        details["command"] = cmd
+        details["returncode"] = proc.returncode
+        if proc.returncode != 0:
+            errors.append(f"renderer exited {proc.returncode}: {proc.stderr.strip()}")
+
+        if renderer == "bundle":
+            expected_files = case.get("expected_bundle_files", [])
+            missing_files = [name for name in expected_files if not (output_path / name).exists()]
+            if missing_files:
+                errors.append(f"missing bundle files: {', '.join(missing_files)}")
+            details["bundle_files"] = sorted(path.name for path in output_path.iterdir()) if output_path.exists() else []
+
+            vex_path = output_path / "vex.json"
+            if vex_path.exists():
+                vex = json.loads(vex_path.read_text())
+                seen_states = sorted({
+                    item.get("analysis", {}).get("state")
+                    for item in vex.get("vulnerabilities", [])
+                    if isinstance(item, dict)
+                })
+                missing_states = [state for state in case.get("expected_vex_states", []) if state not in seen_states]
+                if missing_states:
+                    errors.append(f"missing VEX states: {', '.join(missing_states)}")
+                details["vex_states"] = seen_states
+
+            attestation_path = output_path / "attestation.json"
+            if attestation_path.exists():
+                attestation = json.loads(attestation_path.read_text())
+                missing_keys = [key for key in case.get("attestation_must_contain_keys", []) if key not in attestation]
+                if missing_keys:
+                    errors.append(f"missing attestation keys: {', '.join(missing_keys)}")
+                details["attestation_keys"] = sorted(attestation.keys())
+        else:
+            output = output_path.read_text() if output_path.exists() else ""
+            missing_text = [value for value in case.get("must_contain", []) if value not in output]
+            forbidden_text = [value for value in case.get("must_not_contain", []) if value in output]
+            if missing_text:
+                errors.append(f"missing text: {', '.join(missing_text)}")
+            if forbidden_text:
+                errors.append(f"forbidden text present: {', '.join(forbidden_text)}")
+            max_bytes = case.get("max_bytes")
+            output_bytes = len(output.encode("utf-8"))
+            if max_bytes is not None and output_bytes > max_bytes:
+                errors.append(f"output is {output_bytes} bytes, max is {max_bytes}")
+            details["output_bytes"] = output_bytes
+
+    return {
+        "id": case["id"],
+        "kind": "report-quality",
+        "passed": not errors,
+        "errors": errors,
+        "details": details,
+    }
+
+
+def _run_report_assertion(case: dict[str, Any]) -> dict[str, Any]:
+    assertion = case["assertion"]
+    fixture_path = ROOT / case["input_fixture"]
+    fixture = json.loads(fixture_path.read_text())
+    errors: list[str] = []
+    details: dict[str, Any] = {"assertion": assertion}
+
+    if assertion == "hotspot_with_verification_level_ge_3_becomes_finding":
+        pre = fixture.get("pre_graduation", {})
+        post = fixture.get("post_graduation", {})
+        details.update({
+            "pre_kind": pre.get("kind"),
+            "post_kind": post.get("kind"),
+            "post_verification_level": post.get("verification_level"),
+        })
+        if pre.get("kind") != "hotspot":
+            errors.append("pre_graduation.kind must be hotspot")
+        if post.get("kind") != "finding":
+            errors.append("post_graduation.kind must be finding")
+        if int(post.get("verification_level") or 0) < 3:
+            errors.append("post_graduation.verification_level must be >= 3")
+        if pre.get("stable_key") != post.get("stable_key"):
+            errors.append("pre/post stable_key must match")
+    elif assertion == "migrate_then_migrate_equal":
+        migrated_once = migrate_to_1_2_0(fixture)
+        migrated_twice = migrate_to_1_2_0(migrated_once)
+        details["schema_version"] = migrated_once.get("schema_version")
+        if migrated_once != migrated_twice:
+            errors.append("migration is not idempotent")
+        if migrated_once.get("schema_version") != "1.2.0":
+            errors.append("migration did not produce schema_version 1.2.0")
+    else:
+        errors.append(f"unknown report-quality assertion: {assertion}")
+
+    return {
+        "id": case["id"],
+        "kind": "report-quality",
+        "passed": not errors,
+        "errors": errors,
+        "details": details,
+    }
+
+
+def _run_report_quality_case(case: dict[str, Any], timeout: int) -> dict[str, Any]:
+    if "renderer" in case:
+        return _run_report_renderer(case, timeout)
+    return _run_report_assertion(case)
+
+
 def _render_benchmark_markdown(report: dict[str, Any]) -> str:
     lines = [
         "# Prompt Eval Benchmark",
@@ -205,6 +357,7 @@ def _render_benchmark_markdown(report: dict[str, Any]) -> str:
         f"- Generated at: {report['generated_at']}",
         f"- Trigger cases: {report['summary']['trigger_cases']}",
         f"- Workflow cases: {report['summary']['workflow_cases']}",
+        f"- Report-quality cases: {report['summary'].get('report_quality_cases', 0)}",
         "",
         "## Results",
         "",
@@ -212,17 +365,23 @@ def _render_benchmark_markdown(report: dict[str, Any]) -> str:
 
     for result in report["results"]:
         lines.append(f"### {result['id']}")
-        for mode_name, mode_result in result["modes"].items():
-            if result["kind"] == "trigger":
-                lines.append(f"- {mode_name}: trigger rate {mode_result['trigger_rate']:.2f}")
-            else:
-                lines.append(
-                    "- "
-                    f"{mode_name}: artifact={mode_result['artifact_presence']:.2f}, "
-                    f"sections={mode_result['section_completeness']:.2f}, "
-                    f"verdicts={mode_result['verdict_quality']:.2f}, "
-                    f"overall={mode_result['overall_score']:.2f}"
-                )
+        if result["kind"] == "report-quality":
+            status = "pass" if result["passed"] else "fail"
+            lines.append(f"- report-quality: {status}")
+            for error in result.get("errors", []):
+                lines.append(f"  - {error}")
+        else:
+            for mode_name, mode_result in result["modes"].items():
+                if result["kind"] == "trigger":
+                    lines.append(f"- {mode_name}: trigger rate {mode_result['trigger_rate']:.2f}")
+                elif result["kind"] == "workflow":
+                    lines.append(
+                        "- "
+                        f"{mode_name}: artifact={mode_result['artifact_presence']:.2f}, "
+                        f"sections={mode_result['section_completeness']:.2f}, "
+                        f"verdicts={mode_result['verdict_quality']:.2f}, "
+                        f"overall={mode_result['overall_score']:.2f}"
+                    )
         lines.append("")
 
     return "\n".join(lines).strip() + "\n"
@@ -231,6 +390,12 @@ def _render_benchmark_markdown(report: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run prompt/skill evals for VulnScout")
     parser.add_argument("--evals-dir", default=str(EVALS_DIR), help="Directory containing prompt eval definitions")
+    parser.add_argument(
+        "--suite",
+        choices=["all", "triggers", "workflows", "report-quality"],
+        default="all",
+        help="Eval suite to run (default: all)",
+    )
     parser.add_argument("--timeout", type=int, default=120, help="Per-run timeout in seconds")
     parser.add_argument("--claude-bin", default=shutil.which("claude") or "", help="Path to the Claude CLI binary")
     args = parser.parse_args()
@@ -242,18 +407,33 @@ def main() -> int:
             print(f"error: {error}")
         return 1
 
-    if not args.claude_bin:
+    selected_suites = SUITES if args.suite == "all" else {args.suite}
+    needs_claude = bool(selected_suites.intersection(CLAUDE_SUITES))
+
+    if needs_claude and not args.claude_bin:
         print("error: Claude CLI not found. Run validate_evals.py for schema-only checks.")
         return 2
-
-    trigger_cases = json.loads((evals_dir / "trigger_evals.json").read_text())
-    workflow_cases = json.loads((evals_dir / "workflow_evals.json").read_text())
+    if needs_claude and shutil.which(args.claude_bin) is None:
+        print(f"error: Claude CLI is not executable: {args.claude_bin}")
+        return 2
 
     results: list[dict[str, Any]] = []
-    for case in trigger_cases:
-        results.append(_run_trigger_case(case, args.claude_bin, args.timeout))
-    for case in workflow_cases:
-        results.append(_run_workflow_case(case, args.claude_bin, args.timeout))
+    trigger_cases: list[dict[str, Any]] = []
+    workflow_cases: list[dict[str, Any]] = []
+    report_quality_cases: list[dict[str, Any]] = []
+
+    if "triggers" in selected_suites:
+        trigger_cases = json.loads((evals_dir / "trigger_evals.json").read_text())
+        for case in trigger_cases:
+            results.append(_run_trigger_case(case, args.claude_bin, args.timeout))
+    if "workflows" in selected_suites:
+        workflow_cases = json.loads((evals_dir / "workflow_evals.json").read_text())
+        for case in workflow_cases:
+            results.append(_run_workflow_case(case, args.claude_bin, args.timeout))
+    if "report-quality" in selected_suites:
+        report_quality_cases = json.loads((evals_dir / "report_quality_evals.json").read_text())
+        for case in report_quality_cases:
+            results.append(_run_report_quality_case(case, args.timeout))
 
     report = {
         "generated_at": subprocess.run(
@@ -265,13 +445,26 @@ def main() -> int:
         "summary": {
             "trigger_cases": len(trigger_cases),
             "workflow_cases": len(workflow_cases),
+            "report_quality_cases": len(report_quality_cases),
         },
         "results": results,
     }
 
-    (evals_dir / "benchmark.json").write_text(json.dumps(report, indent=2) + "\n")
-    (evals_dir / "benchmark.md").write_text(_render_benchmark_markdown(report))
-    print(f"ok: wrote {(evals_dir / 'benchmark.json')} and {(evals_dir / 'benchmark.md')}")
+    if selected_suites == {"report-quality"}:
+        print(f"ok: ran {len(report_quality_cases)} report-quality evals")
+    else:
+        (evals_dir / "benchmark.json").write_text(json.dumps(report, indent=2) + "\n")
+        (evals_dir / "benchmark.md").write_text(_render_benchmark_markdown(report))
+        print(f"ok: wrote {(evals_dir / 'benchmark.json')} and {(evals_dir / 'benchmark.md')}")
+    failed_report_quality = [
+        result for result in results
+        if result.get("kind") == "report-quality" and not result.get("passed")
+    ]
+    if failed_report_quality:
+        for result in failed_report_quality:
+            for error in result.get("errors", []):
+                print(f"error: {result['id']}: {error}")
+        return 1
     return 0
 
 
