@@ -32,6 +32,7 @@ scan_orchestrator = load_module("scan_orchestrator_cli", SCRIPTS_DIR / "scan_orc
 run_diff = load_module("run_diff_cli", SCRIPTS_DIR / "run_diff.py")
 semgrep_runner = load_module("semgrep_runner_cli", SCRIPTS_DIR / "tool_runners" / "semgrep_runner.py")
 doctor = load_module("doctor_cli", SCRIPTS_DIR / "doctor.py")
+first_run_smoke = load_module("first_run_smoke_cli", SCRIPTS_DIR / "first_run_smoke.py")
 
 
 class ScanCliParityTests(unittest.TestCase):
@@ -47,6 +48,30 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertIn("--no-semantic-analysis", help_text)
         self.assertNotIn("--no-claude-analysis", help_text)
         self.assertNotIn("--scope", help_text)
+
+    def test_write_output_creates_parent_directories(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "nested" / "scan.json"
+            scan_orchestrator.write_output(
+                {
+                    "project_path": tmpdir,
+                    "findings": [],
+                    "summary": {
+                        "total_findings": 0,
+                        "total_hotspots": 0,
+                        "critical": 0,
+                        "high": 0,
+                        "medium": 0,
+                        "low": 0,
+                        "info": 0,
+                    },
+                },
+                "json",
+                str(output),
+            )
+
+            self.assertTrue(output.exists())
+            self.assertTrue((Path(tmpdir) / ".claude" / "findings.json").exists())
 
     def test_quick_profile_uses_bundled_local_rules(self):
         tools, rules = scan_orchestrator.resolve_profile_config("quick", None, None)
@@ -283,6 +308,37 @@ class DoctorTests(unittest.TestCase):
         self.assertTrue(semgrep["available"])
 
 
+class FirstRunSmokeTests(unittest.TestCase):
+    def test_first_run_smoke_uses_temp_workspace_not_demo_tree(self):
+        calls: list[list[str]] = []
+
+        def fake_run(args: list[str]) -> None:
+            calls.append(args)
+            if "scan_orchestrator.py" in args[1]:
+                output = Path(args[args.index("--output") + 1])
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(json.dumps({
+                    "findings": [
+                        {"severity": "high"},
+                        {"severity": "high"},
+                        {"severity": "medium"},
+                        {"severity": "medium"},
+                    ]
+                }))
+            if "report.py" in args[1] and "bundle" in args:
+                output = Path(args[args.index("--output") + 1])
+                output.mkdir(parents=True, exist_ok=True)
+                for name in ("findings.json", "findings.sarif", "vex.json", "attestation.json", "report.html", "README.md"):
+                    (output / name).write_text("{}")
+
+        with mock.patch.object(first_run_smoke, "_run", side_effect=fake_run):
+            self.assertEqual(first_run_smoke.main(), 0)
+
+        scan_call = next(call for call in calls if "scan_orchestrator.py" in call[1])
+        self.assertNotEqual(scan_call[2], "demo/vulnerable-app")
+        self.assertIn("vulnscout-first-run-", scan_call[2])
+
+
 class SemgrepRunnerTests(unittest.TestCase):
     def test_semgrep_runner_raises_on_invalid_json_output(self):
         completed = subprocess.CompletedProcess(
@@ -365,6 +421,8 @@ class PackageContentsTests(unittest.TestCase):
         self.assertIn("vuln-scout/rules/vuln-scout-local.yml", paths)
         self.assertIn("vuln-scout/scripts/doctor.py", paths)
         self.assertIn("vuln-scout/scripts/mcp_server.py", paths)
+        self.assertIn("vuln-scout/scripts/mcp_smoke.py", paths)
+        self.assertIn("vuln-scout/scripts/plugin_validate.py", paths)
         self.assertIn("whitebox-pentest/.claude-plugin/plugin.json", paths)
         self.assertIn("whitebox-pentest/commands/full-audit.md", paths)
         self.assertIn("whitebox-pentest/commands/org-memory-compile.md", paths)

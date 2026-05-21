@@ -16,6 +16,10 @@ VulnScout's stable promise is an offline quick scan, shared `findings.json` with
 
 For MCP hosts, VulnScout also ships a local stdio MCP server with scanner, report, artifact, and Joern CPG tools. See [docs/mcp.md](docs/mcp.md).
 
+VulnScout runs scanner binaries and Joern CPGQL locally against the workspace you
+provide. The stable `quick` path uses bundled rules and does not require a remote
+service.
+
 ## Prerequisites
 
 - Python 3.9 or newer
@@ -138,7 +142,7 @@ Use the bundled MCP server when an MCP host should call VulnScout directly:
 python3 vuln-scout/scripts/mcp_server.py
 ```
 
-The server exposes `vulnscout_scan`, `vulnscout_report`, `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, `vulnscout_verify_findings`, `vulnscout_read_artifact`, and `vulnscout_doctor`. Joern tools return structured unavailable states when Joern is not installed.
+The server exposes `vulnscout_scan`, `vulnscout_report`, `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, `vulnscout_verify_findings`, `vulnscout_read_artifact`, and `vulnscout_doctor`. Joern tools return structured unavailable states when Joern is not installed, and report content is opt-in to keep MCP responses compact.
 
 ## Project Structure
 

@@ -1,5 +1,6 @@
 {
   "name": "vuln-scout",
+  "description": "VulnScout plugins for AI-assisted whitebox security review, deterministic local quick scans, evidence-backed verification, portable reports, and one-release whitebox-pentest compatibility aliases.",
   "owner": {
     "name": "allsmog"
   },

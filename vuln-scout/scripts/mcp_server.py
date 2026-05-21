@@ -90,6 +90,8 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "output": _schema_string("Output file path, or directory path for bundle, inside the workspace."),
                 "suppressions": _schema_string("Optional .vuln-scout-ignore path inside the workspace."),
                 "fail_on": _enum(["critical", "high", "medium", "low", "info"], "Optional fail-on threshold."),
+                "include_content": _schema_bool("Include rendered report text in the MCP response. Defaults to false."),
+                "max_content_bytes": {"type": "integer", "description": "Maximum report content bytes when include_content is true.", "default": 65536},
             },
             "required": ["target", "format"],
         },
@@ -110,7 +112,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
     },
     {
         "name": "vulnscout_joern_query",
-        "description": "Run a bounded read-only Joern CPGQL snippet against an existing or newly created CPG.",
+        "description": "Run a bounded raw local Joern CPGQL snippet against an existing or newly created CPG.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -229,6 +231,13 @@ def _read_text_limited(path: Path) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _read_text_limited_to(path: Path, max_bytes: int) -> str:
+    data = path.read_bytes()
+    if len(data) > max_bytes:
+        return data[:max_bytes].decode("utf-8", errors="replace") + "\n...[truncated]"
+    return data.decode("utf-8", errors="replace")
+
+
 def _content(payload: Any) -> dict[str, Any]:
     return {
         "content": [
@@ -323,10 +332,15 @@ def tool_vulnscout_report(args: dict[str, Any]) -> dict[str, Any]:
         "format": fmt,
         "output": str(output_path),
     }
-    if fmt != "bundle":
-        payload["content"] = _read_text_limited(output_path)
-    else:
+    try:
+        payload["summary"] = load_artifact(input_path).get("summary", {})
+    except Exception:
+        payload["summary"] = {}
+    if fmt == "bundle":
         payload["files"] = sorted(path.name for path in output_path.iterdir())
+    elif args.get("include_content"):
+        max_bytes = int(args.get("max_content_bytes") or 65536)
+        payload["content"] = _read_text_limited_to(output_path, max(1024, min(max_bytes, MAX_TEXT_BYTES)))
     return payload
 
 

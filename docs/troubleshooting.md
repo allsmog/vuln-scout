@@ -38,6 +38,18 @@ python3 vuln-scout/scripts/create_cpg.py /path/to/code
 If Joern is missing, scans still run with available tools and reports list Joern
 under `tool_status.unavailable`.
 
+Homebrew Joern builds can install frontend helpers in paths that `joern-parse`
+does not discover by default. VulnScout sets `ASTGEN_BIN` automatically for the
+JavaScript frontend when the helper is present under Joern's packaged
+`frontends/jssrc2cpg` directory, and it uses Joern's `pythonsrc` frontend for
+Python CPG creation. If CPG creation still fails, run:
+
+```bash
+joern-parse --list-languages
+python3 vuln-scout/scripts/create_cpg.py demo/vulnerable-app --language javascript --json
+python3 vuln-scout/scripts/mcp_smoke.py --require-joern
+```
+
 ## CodeQL Setup
 
 CodeQL is optional and project-build dependent. If database creation fails, use
@@ -54,6 +66,14 @@ For normal local testing from this checkout, use the plugin root directly:
 
 ```bash
 claude --plugin-dir ./vuln-scout
+```
+
+Validate plugin metadata before marketplace submission:
+
+```bash
+python3 vuln-scout/scripts/plugin_validate.py --strict
+claude plugin validate --strict ./vuln-scout
+claude plugin validate --strict ./whitebox-pentest
 ```
 
 When developing against a separate project under review, Claude Code can also discover plugins from `.claude/plugins/` inside that project.

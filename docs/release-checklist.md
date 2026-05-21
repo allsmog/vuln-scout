@@ -6,6 +6,8 @@ Run these checks before publishing a release:
 python3 -m pytest
 python3 vuln-scout/scripts/check_consistency.py
 python3 vuln-scout/scripts/validate_evals.py
+python3 vuln-scout/scripts/plugin_validate.py --strict
+python3 vuln-scout/scripts/mcp_smoke.py
 python3 vuln-scout/benchmarks/run_benchmark.py --list
 node -e "import('./kuzushi-module.js').then(() => console.log('import ok'))"
 npm --cache /tmp/vuln-scout-npm-cache pack --dry-run
@@ -16,6 +18,7 @@ Product checks:
 - `python3 vuln-scout/scripts/doctor.py --strict` reports quick-profile readiness.
 - `demo/vulnerable-app` quick scan produces the documented expected findings.
 - Markdown, HTML, SARIF, and JSON reports render from `.claude/findings.json`.
+- MCP smoke passes and `vulnscout_report` does not return full report content unless requested.
 - `tool_status` is present when scans request external tools.
 - Benchmark quality gates are run before evidence-based release claims, for example
   `python3 vuln-scout/benchmarks/run_benchmark.py --all --profile quick --quality-gate`.

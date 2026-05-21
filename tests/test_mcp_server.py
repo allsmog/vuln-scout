@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
+FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
 
 
 def load_module(name: str, path: Path):
@@ -59,6 +61,44 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("offline_ready", report)
         self.assertIn("tools", report)
         self.assertIn("profile_maturity", report)
+
+    def test_report_tool_omits_content_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            artifact_dir = workspace / ".claude"
+            artifact_dir.mkdir()
+            shutil.copyfile(FIXTURES_DIR / "sample-findings.json", artifact_dir / "findings.json")
+
+            report = mcp_server.call_tool(
+                "vulnscout_report",
+                {"target": tmpdir, "format": "html", "output": "report.html"},
+            )
+
+        self.assertTrue(report["ok"])
+        self.assertIn("summary", report)
+        self.assertNotIn("content", report)
+
+    def test_report_tool_includes_content_when_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            workspace = Path(tmpdir)
+            artifact_dir = workspace / ".claude"
+            artifact_dir.mkdir()
+            shutil.copyfile(FIXTURES_DIR / "sample-findings.json", artifact_dir / "findings.json")
+
+            report = mcp_server.call_tool(
+                "vulnscout_report",
+                {
+                    "target": tmpdir,
+                    "format": "md",
+                    "output": "report.md",
+                    "include_content": True,
+                    "max_content_bytes": 4096,
+                },
+            )
+
+        self.assertTrue(report["ok"])
+        self.assertIn("content", report)
+        self.assertIn("VulnScout", report["content"])
 
     def test_json_rpc_tools_list(self) -> None:
         response = mcp_server.handle_request({

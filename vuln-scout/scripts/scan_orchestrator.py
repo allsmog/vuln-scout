@@ -627,7 +627,9 @@ def write_output(artifact: dict[str, Any], fmt: str, output_path: str | None) ->
         content = json.dumps(artifact, indent=2)
 
     if output_path:
-        Path(output_path).write_text(content + "\n")
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(content + "\n")
         log.info("Wrote %s output to %s", fmt, output_path)
     elif fmt != "json":
         print(content)

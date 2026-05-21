@@ -44,13 +44,17 @@ Example MCP config:
 - `vulnscout_scan` runs quick, deep, or audit scans and returns `findings.json`.
 - `vulnscout_report` renders JSON, SARIF, Markdown, HTML, PR comment, or bundle output.
 - `vulnscout_create_cpg` creates or reuses cached Joern CPGs per language.
-- `vulnscout_joern_query` runs a bounded Joern CPGQL snippet against a CPG.
+- `vulnscout_joern_query` runs a bounded raw local Joern CPGQL snippet against a CPG.
 - `vulnscout_joern_discover` runs VulnScout's Joern discovery queries.
 - `vulnscout_verify_findings` batch-verifies findings with Joern.
 - `vulnscout_read_artifact` reads safe VulnScout artifacts from a workspace.
 
 All path arguments are resolved inside the target workspace. Paths that escape
 the workspace are rejected.
+
+`vulnscout_report` returns the report path, exit code, and artifact summary by
+default. Set `include_content: true` to include rendered Markdown/HTML/JSON text
+in the MCP response; `max_content_bytes` caps the returned content.
 
 Analyzer setup problems are returned as structured tool payloads. For example,
 if Joern is installed but `joern-parse` cannot create a CPG for the target,
@@ -88,6 +92,15 @@ printf '%s\n' \
   | python3 vuln-scout/scripts/mcp_server.py
 ```
 
+Run the full local MCP smoke test:
+
+```bash
+python3 vuln-scout/scripts/mcp_smoke.py
+```
+
+Use `--require-joern` when the environment is expected to support CPG creation
+and Joern query execution.
+
 ## Joern Query Example
 
 Create a CPG first:
@@ -110,3 +123,6 @@ Then run a bounded query:
 ```
 
 The server returns stdout, stderr, the CPG path, and the Joern exit code.
+
+Raw CPGQL executes locally with the privileges of the MCP host process. Use it
+for trusted workspaces and reviewer-controlled analysis.

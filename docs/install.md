@@ -47,6 +47,10 @@ python3 vuln-scout/scripts/mcp_server.py
 
 See [MCP integration](mcp.md) for host configuration and tool details.
 
+VulnScout executes local scanner binaries and local Joern CPGQL queries against
+the target workspace. The stable `quick` profile uses bundled rules and does not
+require a remote service.
+
 ## Contributor Symlink
 
 Use this only when developing the plugin locally and you need Claude Code to read live files from a checkout.
@@ -60,6 +64,8 @@ ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 
 ```bash
 python3 vuln-scout/scripts/doctor.py --strict
+python3 vuln-scout/scripts/plugin_validate.py --strict
+python3 vuln-scout/scripts/mcp_smoke.py
 ```
 
 Then run the canonical five-minute demo:

@@ -136,7 +136,14 @@ def validate() -> list[str]:
     if not schema_path.exists():
         errors.append("shared findings schema is missing")
 
-    for required_script in ("prompt_artifacts.py", "validate_evals.py", "run_prompt_evals.py", "mcp_server.py"):
+    for required_script in (
+        "prompt_artifacts.py",
+        "validate_evals.py",
+        "run_prompt_evals.py",
+        "mcp_server.py",
+        "mcp_smoke.py",
+        "plugin_validate.py",
+    ):
         if not (PLUGIN_ROOT / "scripts" / required_script).exists():
             errors.append(f"scripts/{required_script} is missing")
 

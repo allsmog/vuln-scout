@@ -41,17 +41,14 @@ jobs:
       - name: First-run smoke test
         run: python3 vuln-scout/scripts/first_run_smoke.py
 
+      - name: MCP smoke test
+        run: python3 vuln-scout/scripts/mcp_smoke.py
+
       - name: Validate prompt eval definitions
         run: python3 vuln-scout/scripts/validate_evals.py
 
       - name: Validate Claude plugin install
-        run: |
-          if command -v claude >/dev/null 2>&1; then
-            claude plugin validate ./vuln-scout
-            claude plugin validate ./whitebox-pentest
-          else
-            echo "Claude CLI unavailable; skipping plugin install validation"
-          fi
+        run: python3 vuln-scout/scripts/plugin_validate.py --strict
 
       - name: Run report-quality evals
         run: python3 vuln-scout/scripts/run_prompt_evals.py --suite report-quality

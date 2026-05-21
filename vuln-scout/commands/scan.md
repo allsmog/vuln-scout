@@ -28,7 +28,7 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 | `--suppressions` | Apply `.vuln-scout-ignore` after aggregation |
 | `--format` | Emit `json`, `sarif`, `md`, `html`, `pr-comment`, or `badge` at the end |
 | `--fail-on` | Exit `2` when unsuppressed `finding` entries exist at or above the severity |
-| `--output` | Save the final emitted artifact to a file |
+| `--output` | Save the final emitted artifact to a file. In Claude plugin workflows, resolve relative output paths under the target workspace when the scan target is not the current directory. |
 | `--json` | Shortcut for `--format json` |
 | `--secrets` | Run secret scanning (gitleaks/truffleHog) alongside static analysis |
 | `--require-tools` | Fail if any requested tool is unavailable |
@@ -84,6 +84,19 @@ If a scan branch only proves that a dangerous pattern exists, record a `hotspot`
 Default target is the current directory.
 
 Static scans always run against a **source directory**. Saved `.claude/scope-*.md` snapshots are useful context for Claude-side review and threat modeling, but they are not direct input to Semgrep, Joern, or CodeQL.
+
+When invoking `scripts/scan_orchestrator.py` from this command and the user
+supplies a scan target other than `.`, convert relative `--output` paths to live
+under that target. For example:
+
+```bash
+python3 /path/to/vuln-scout/scripts/scan_orchestrator.py /tmp/app \
+  --profile quick \
+  --output /tmp/app/.claude/plugin-findings.json
+```
+
+Do not write relative output artifacts into the plugin repository unless the
+plugin repository is the explicit scan target.
 
 If `--since-commit <sha>` is passed:
 
