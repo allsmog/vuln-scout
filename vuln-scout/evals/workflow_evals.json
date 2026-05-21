@@ -1,0 +1,78 @@
+[
+  {
+    "id": "full-audit-orchestration",
+    "command": "/vuln-scout:full-audit",
+    "prompt": "/vuln-scout:full-audit . --quick --no-interactive",
+    "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
+    "expected_artifacts": [
+      ".claude/audit-plan.md",
+      ".claude/review-ledger.json",
+      ".claude/findings.json",
+      ".claude/vuln-scout-state.json"
+    ],
+    "required_sections": {
+      ".claude/audit-plan.md": [
+        "Context",
+        "Audit Strategy",
+        "Module Prioritization",
+        "Attack Surfaces",
+        "Verification Strategy",
+        "Task List",
+        "Audit Scenarios"
+      ]
+    },
+    "expected_subject_types": [
+      "audit-plan",
+      "module-findings"
+    ],
+    "expected_verdicts": [
+      "verified",
+      "needs_review"
+    ]
+  },
+  {
+    "id": "threat-model-review-loop",
+    "command": "/vuln-scout:threats",
+    "prompt": "/vuln-scout:threats --save .claude/threat-model.md",
+    "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
+    "expected_artifacts": [
+      ".claude/threat-model.md",
+      ".claude/review-ledger.json"
+    ],
+    "required_sections": {
+      ".claude/threat-model.md": [
+        "Executive Summary",
+        "Architecture Overview",
+        "Threat Inventory",
+        "Adversarial Review Summary"
+      ]
+    },
+    "expected_subject_types": [
+      "threat-model"
+    ],
+    "expected_verdicts": []
+  },
+  {
+    "id": "verify-review-ledger",
+    "command": "/vuln-scout:verify",
+    "prompt": "/vuln-scout:verify app.py:4 --type ssrf --json",
+    "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
+    "expected_artifacts": [
+      ".claude/findings.json",
+      ".claude/review-ledger.json"
+    ],
+    "required_sections": {
+      ".claude/review-ledger.json": [
+        "machine-readable review subjects"
+      ]
+    },
+    "expected_subject_types": [
+      "finding-verification"
+    ],
+    "expected_verdicts": [
+      "verified",
+      "false_positive",
+      "needs_review"
+    ]
+  }
+]

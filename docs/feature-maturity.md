@@ -6,8 +6,8 @@ review. Experimental features are prompts or scripts that need reviewer control.
 
 | Feature family | Status | What is ready | Known limits |
 |----------------|--------|---------------|--------------|
-| Claude plugin experience | Stable | 13 commands, 8 agents, 4 hooks, 27 skills, prompt state artifacts | Quality still depends on reviewer prompts and Claude Code context limits |
-| Kuzushi/NPM integration | Stable | ESM package entrypoint, 13 exposed tools, package contents allowlist | Kuzushi runtime behavior still needs consumer-side integration coverage |
+| Claude plugin experience | Stable | 14 commands, 8 agents, 4 hooks, 27 skills, prompt state artifacts | Quality still depends on reviewer prompts and Claude Code context limits |
+| Kuzushi/NPM integration | Stable | ESM package entrypoint, 14 exposed tools, common structured flags, package contents allowlist | Deep reviewer controls still live in Claude Code prompts |
 | Quick scan pipeline | Stable | Offline local Semgrep rules, SARIF/JSON/Markdown/HTML outputs, suppressions, fail-on gate | Requires Semgrep installed locally |
 | Deep scan pipeline | Beta | CodeQL, Joern, Slither, Trivy, Checkov, and secret scanners run when available | External tool installation, project builds, and network access affect reliability |
 | Finding lifecycle | Stable | Shared schema, stable keys, suppressions, deduplication, CVSS, tool status, report rendering | Verification levels are only as strong as the tool evidence present |

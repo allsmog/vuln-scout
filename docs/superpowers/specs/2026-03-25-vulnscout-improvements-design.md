@@ -460,7 +460,7 @@ SVG badge in shields.io format:
 
 ## Critical Files
 
-All paths below are relative to `whitebox-pentest/` (the plugin root).
+All paths below are relative to `vuln-scout/` (the plugin root).
 
 | File | Changes |
 |------|---------|

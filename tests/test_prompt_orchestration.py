@@ -9,9 +9,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
-EVALS_DIR = ROOT / "whitebox-pentest" / "evals"
+EVALS_DIR = ROOT / "vuln-scout" / "evals"
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -50,7 +50,7 @@ class PromptArtifactTests(unittest.TestCase):
                 "audit_report": ".claude/audit-report.md",
                 "findings_json": ".claude/findings.json",
                 "review_ledger": ".claude/review-ledger.json",
-                "state_json": ".claude/whitebox-pentest-state.json",
+                "state_json": ".claude/vuln-scout-state.json",
             },
             "review_state": {
                 "audit_plan": "APPROVED",
@@ -77,16 +77,16 @@ class EvalValidationTests(unittest.TestCase):
                 {
                     "id": "too-few",
                     "kind": "command",
-                    "query": "/whitebox-pentest:full-audit .",
-                    "expected_targets": ["/whitebox-pentest:full-audit"],
+                    "query": "/vuln-scout:full-audit .",
+                    "expected_targets": ["/vuln-scout:full-audit"],
                     "should_trigger": True,
                 }
             ]))
             (evals_dir / "workflow_evals.json").write_text(json.dumps([
                 {
                     "id": "workflow-1",
-                    "command": "/whitebox-pentest:full-audit",
-                    "prompt": "/whitebox-pentest:full-audit . --quick",
+                    "command": "/vuln-scout:full-audit",
+                    "prompt": "/vuln-scout:full-audit . --quick",
                     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
                     "expected_artifacts": [".claude/audit-plan.md"],
                     "required_sections": {".claude/audit-plan.md": ["Context"]},
@@ -94,8 +94,8 @@ class EvalValidationTests(unittest.TestCase):
                 },
                 {
                     "id": "workflow-2",
-                    "command": "/whitebox-pentest:threats",
-                    "prompt": "/whitebox-pentest:threats",
+                    "command": "/vuln-scout:threats",
+                    "prompt": "/vuln-scout:threats",
                     "fixture_path": "tests/fixtures/code/js/nextjs-redirect",
                     "expected_artifacts": [".claude/threat-model.md"],
                     "required_sections": {".claude/threat-model.md": ["Executive Summary"]},
@@ -103,12 +103,42 @@ class EvalValidationTests(unittest.TestCase):
                 },
                 {
                     "id": "workflow-3",
-                    "command": "/whitebox-pentest:verify",
-                    "prompt": "/whitebox-pentest:verify app.py:4 --type ssrf",
+                    "command": "/vuln-scout:verify",
+                    "prompt": "/vuln-scout:verify app.py:4 --type ssrf",
                     "fixture_path": "tests/fixtures/code/python/vulnerable-ssrf",
                     "expected_artifacts": [".claude/review-ledger.json"],
                     "required_sections": {".claude/review-ledger.json": ["ignored"]},
                     "expected_subject_types": ["finding-verification"],
+                },
+            ]))
+            (evals_dir / "report_quality_evals.json").write_text(json.dumps([
+                {
+                    "id": "trust-label-md-render",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "markdown",
+                    "must_contain": ["Trust:"],
+                },
+                {
+                    "id": "bundle-completeness",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "bundle",
+                    "expected_bundle_files": ["findings.json"],
+                },
+                {
+                    "id": "pr-comment-trust-legend",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
+                    "renderer": "pr_comment",
+                    "must_contain": ["[T:"],
+                },
+                {
+                    "id": "hotspot-to-finding-graduation",
+                    "input_fixture": "tests/fixtures/artifacts/sample-graduation.json",
+                    "assertion": "hotspot_with_verification_level_ge_3_becomes_finding",
+                },
+                {
+                    "id": "migration-backfill-idempotent",
+                    "input_fixture": "tests/fixtures/artifacts/sample-findings.json",
+                    "assertion": "migrate_then_migrate_equal",
                 },
             ]))
             (evals_dir / "benchmark.json").write_text("{}\n")
@@ -121,20 +151,20 @@ class EvalValidationTests(unittest.TestCase):
 
 class CommandDocContractTests(unittest.TestCase):
     def test_full_audit_documents_condensed_quick_plan(self) -> None:
-        text = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
+        text = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
         self.assertIn("Condensed audit plan", text)
         self.assertIn(".claude/audit-plan.md", text)
 
     def test_unresolved_review_notes_stay_needs_review(self) -> None:
-        full_audit = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
-        verify = (ROOT / "whitebox-pentest" / "commands" / "verify.md").read_text()
+        full_audit = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
+        verify = (ROOT / "vuln-scout" / "commands" / "verify.md").read_text()
         self.assertIn("[REVIEWER NOTE: unresolved]", full_audit)
         self.assertIn("needs_review", full_audit)
         self.assertIn("[REVIEWER NOTE: unresolved]", verify)
         self.assertIn("needs_review", verify)
 
     def test_no_interactive_path_forbids_ask_user_question(self) -> None:
-        text = (ROOT / "whitebox-pentest" / "commands" / "full-audit.md").read_text()
+        text = (ROOT / "vuln-scout" / "commands" / "full-audit.md").read_text()
         self.assertIn("When `--no-interactive` is passed, **NEVER call AskUserQuestion**.", text)
         self.assertIn("NEVER call `AskUserQuestion`", text)
 

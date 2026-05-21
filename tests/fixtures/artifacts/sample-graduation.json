@@ -1,0 +1,106 @@
+{
+  "id": "hotspot-graduation-fixture",
+  "description": "A hotspot should graduate to a reportable finding once verification evidence reaches L3.",
+  "pre_graduation": {
+    "id": "VSCOUT-GRAD-001",
+    "stable_key": "fixture:graduation:nextjs-redirect",
+    "kind": "hotspot",
+    "severity": "high",
+    "type": "framework-redirect",
+    "title": "Next.js redirect audit pivot",
+    "file": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+    "line": 4,
+    "rule_id": "full-audit.nextjs.redirect",
+    "cwe": "CWE-918",
+    "verdict": "needs_review",
+    "confidence": "medium",
+    "source_tool": "full-audit",
+    "message": "redirect() exists in a Server Action but exploitability is not yet established.",
+    "in_diff": true,
+    "verification_level": 2,
+    "evidence": [
+      {
+        "type": "code",
+        "label": "server action redirect",
+        "path": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+        "line": 4,
+        "excerpt": "redirect(target);",
+        "role": "sink",
+        "order": 1
+      }
+    ],
+    "trust_metadata": {
+      "provenance": {
+        "origin": "llm_analysis",
+        "tool": "claude",
+        "contributors": ["llm_analysis"]
+      },
+      "exploitability_status": "plausible",
+      "false_positive_risk": {
+        "level": "medium",
+        "reason": "Source control has not been proven yet."
+      },
+      "confidence_reason": "Framework-aware review found a sink but no proof of attacker control."
+    }
+  },
+  "post_graduation": {
+    "id": "VSCOUT-GRAD-001",
+    "stable_key": "fixture:graduation:nextjs-redirect",
+    "kind": "finding",
+    "severity": "high",
+    "type": "framework-redirect",
+    "title": "Next.js redirect receives attacker-controlled target",
+    "file": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+    "line": 4,
+    "rule_id": "full-audit.nextjs.redirect",
+    "cwe": "CWE-601",
+    "verdict": "verified",
+    "confidence": "high",
+    "source_tool": "full-audit",
+    "message": "A submitted form field controls the redirect target and can send users to an external host.",
+    "in_diff": true,
+    "verification_level": 3,
+    "evidence": [
+      {
+        "type": "code",
+        "label": "attacker-controlled source",
+        "path": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+        "line": 3,
+        "excerpt": "const target = formData.get('next')?.toString();",
+        "role": "source",
+        "order": 0
+      },
+      {
+        "type": "code",
+        "label": "redirect sink",
+        "path": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+        "line": 4,
+        "excerpt": "redirect(target);",
+        "role": "sink",
+        "order": 1
+      },
+      {
+        "type": "poc",
+        "label": "generated redirect payload",
+        "path": "tests/fixtures/code/js/nextjs-redirect/app/actions.ts",
+        "line": 4,
+        "excerpt": "next=https://attacker.example",
+        "role": "source",
+        "order": 2
+      }
+    ],
+    "trust_metadata": {
+      "provenance": {
+        "origin": "mixed",
+        "tool": "full-audit+claude",
+        "contributors": ["deterministic_tool", "llm_analysis"]
+      },
+      "exploitability_status": "confirmed",
+      "false_positive_risk": {
+        "level": "low",
+        "reason": "Source, sink, and generated payload are all present."
+      },
+      "confidence_reason": "L3 evidence is enough to promote the framework pivot to a reportable finding."
+    }
+  }
+}

@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install pytest
+        run: pip install pytest semgrep
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -33,22 +33,46 @@ jobs:
         run: pytest tests/ -v
 
       - name: Run consistency check
-        run: python3 whitebox-pentest/scripts/check_consistency.py
+        run: python3 vuln-scout/scripts/check_consistency.py
 
       - name: Validate doctor output
-        run: python3 whitebox-pentest/scripts/doctor.py --json
+        run: python3 vuln-scout/scripts/doctor.py --json
+
+      - name: First-run smoke test
+        run: python3 vuln-scout/scripts/first_run_smoke.py
 
       - name: Validate prompt eval definitions
-        run: python3 whitebox-pentest/scripts/validate_evals.py
+        run: python3 vuln-scout/scripts/validate_evals.py
+
+      - name: Validate Claude plugin install
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            claude plugin validate ./vuln-scout
+            claude plugin validate ./whitebox-pentest
+          else
+            echo "Claude CLI unavailable; skipping plugin install validation"
+          fi
+
+      - name: Run report-quality evals
+        run: python3 vuln-scout/scripts/run_prompt_evals.py --suite report-quality
+
+      - name: Verify migrated fixture no-op
+        run: |
+          cp tests/fixtures/artifacts/sample-findings-v1_2_0.json /tmp/vuln-scout-already-migrated.json
+          python3 vuln-scout/scripts/migrate_artifact.py /tmp/vuln-scout-already-migrated.json --in-place
+          cmp tests/fixtures/artifacts/sample-findings-v1_2_0.json /tmp/vuln-scout-already-migrated.json
 
       - name: Validate Kuzushi module import
         run: node -e "import('./kuzushi-module.js').then(() => console.log('import ok'))"
+
+      - name: Validate Kuzushi parity
+        run: pytest tests/test_kuzushi_parity.py -v
 
       - name: Validate package contents
         run: npm --cache /tmp/vuln-scout-npm-cache pack --dry-run
 
       - name: Smoke-test report renderers
         run: |
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format sarif -o /tmp/vuln-scout-report.sarif
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format md -o /tmp/vuln-scout-report.md
-          python3 whitebox-pentest/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format html -o /tmp/vuln-scout-report.html
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format sarif -o /tmp/vuln-scout-report.sarif
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format md -o /tmp/vuln-scout-report.md
+          python3 vuln-scout/scripts/report.py tests/fixtures/artifacts/sample-findings.json --format html -o /tmp/vuln-scout-report.html

@@ -17,7 +17,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = ROOT / "whitebox-pentest" / "scripts"
+SCRIPTS_DIR = ROOT / "vuln-scout" / "scripts"
 
 # Add scripts dir to path so inter-module imports work (chain_detector -> service_graph, etc.)
 sys.path.insert(0, str(SCRIPTS_DIR))

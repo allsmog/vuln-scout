@@ -4,9 +4,9 @@ This tiny app is intentionally vulnerable. Use it to validate that VulnScout can
 run the deterministic `quick` scan profile without Semgrep registry access.
 
 ```bash
-python3 ../../whitebox-pentest/scripts/doctor.py --strict
-python3 ../../whitebox-pentest/scripts/scan_orchestrator.py . --profile quick --format md --output report.md
-python3 ../../whitebox-pentest/scripts/report.py .claude/findings.json --format html --output report.html
+python3 ../../vuln-scout/scripts/doctor.py --strict
+python3 ../../vuln-scout/scripts/scan_orchestrator.py . --profile quick --format md --output report.md
+python3 ../../vuln-scout/scripts/report.py .claude/findings.json --format html --output report.html
 ```
 
 Expected quick-profile findings:

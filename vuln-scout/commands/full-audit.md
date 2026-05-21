@@ -1,0 +1,1954 @@
+---
+name: full-audit
+description: "[stable] End-to-end security audit with hotspot-aware framework pivots, shared findings.json schema, and CI-friendly workflow flags"
+argument-hint: "[path] [--quick] [--top N] [--recent days] [--since-commit sha] [--diff-base ref] [--language go|ts|py|java] [--focus types] [--exclude paths] [--scope name] [--min-severity level] [--suppressions path] [--fail-on severity] [--verify-dynamic] [--json] [--no-interactive] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
+allowed-tools:
+  - Bash
+  - Glob
+  - Grep
+  - Read
+  - Write
+  - TodoWrite
+  - Task
+  - AskUserQuestion
+---
+
+# Comprehensive Security Audit
+
+**One command to audit any codebase, regardless of size.**
+
+```
+/vuln-scout:full-audit /path/to/code
+```
+
+## Shared Prompt Fragments
+
+Before executing this command, read these canonical fragments and treat them as
+the source of truth for phase order, artifacts, and safety defaults:
+
+- `vuln-scout/references/full-audit/phases.md`
+- `vuln-scout/references/full-audit/artifact-contract.md`
+- `vuln-scout/references/full-audit/safety.md`
+
+The detailed body below is compatibility guidance for Claude Code command
+execution. If it conflicts with a shared fragment, follow the shared fragment.
+
+This command automatically:
+- Detects if codebase is too large for direct analysis
+- Creates compressed architecture scope (language-aware)
+- Generates system-level threat model
+- Writes a persisted audit plan to `.claude/audit-plan.md`
+- Records adversarial review rounds in `.claude/review-ledger.json`
+- Identifies and audits high-risk modules
+- Produces actionable security report
+
+## What This Command Does
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    FULL AUDIT PIPELINE                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Step 0: SIZE CHECK & ARCHITECTURE DISCOVERY                 │
+│  └─> Measure tokens, parse docker-compose/supervisord       │
+│  └─> Map services, ports, internal connectivity              │
+│      < 150k tokens  → Direct audit                          │
+│      > 150k tokens  → Architecture-first workflow           │
+│                                                              │
+│  Step 1: ARCHITECTURE SCOPE (if large)                       │
+│  └─> Language-aware compression (Go: 97%, JS/TS: 80%)       │
+│                                                              │
+│  Step 1.5: FRAMEWORK PATTERN SCAN                            │
+│  └─> Next.js Server Actions, Flask SSTI patterns            │
+│  └─> Framework-specific security anti-patterns              │
+│                                                              │
+│  Step 2: THREAT MODEL                                        │
+│  └─> STRIDE analysis, DFDs, trust boundaries                │
+│                                                              │
+│  Step 2.5: AUDIT PLAN + REVIEW                               │
+│  └─> Persist strategy, attack surfaces, verification plan    │
+│  └─> 3 review angles: coverage, prioritization, mismatch     │
+│                                                              │
+│  Step 3: MODULE IDENTIFICATION                               │
+│  └─> Rank modules by risk, select top N                     │
+│                                                              │
+│  Step 4: DEEP DIVE AUDIT (per module)                        │
+│  └─> Sink search, data flow tracing, finding review loops    │
+│  └─> Semgrep + Joern + CodeQL + extended detectors          │
+│  └─> Semantic FP checks, cross-tool correlation             │
+│  └─> Auto-propagation of verified patterns                  │
+│                                                              │
+│  Step 4.5: CLAUDE SEMANTIC ANALYSIS                          │
+│  └─> AI-native reasoning on unresolved findings             │
+│  └─> Exploitability assessment, sanitizer bypass analysis   │
+│                                                              │
+│  Step 5: CHAIN + TRIAGE                                      │
+│  └─> Automated attack chain detection (5 patterns)          │
+│  └─> Auto-triage (auth, exposure, test files)               │
+│  └─> Business context CVSS adjustment                       │
+│                                                              │
+│  Step 6: REPORT + ARTIFACTS                                  │
+│  └─> Findings with remediation + knowledge graph            │
+│  └─> PoC generation for verified findings (optional)        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Usage
+
+### Full Audit (Recommended)
+```
+/vuln-scout:full-audit /path/to/code
+```
+
+### Quick Audit (Skip threat modeling)
+```
+/vuln-scout:full-audit /path/to/code --quick
+```
+
+### Audit Top 5 Modules (default is 3)
+```
+/vuln-scout:full-audit /path/to/code --top 5
+```
+
+### Focus on Recent Changes (git-aware)
+```
+/vuln-scout:full-audit /path/to/code --recent 30
+```
+Prioritizes modules with changes in the last 30 days. New code has higher vulnerability density.
+
+### Scan Only Commit Diff (CI-friendly)
+```
+/vuln-scout:full-audit . --since-commit abc1234
+```
+Deep-dive scoped to files changed since the commit. Threat model still covers full codebase for context.
+
+### PR Scan with Quick Mode
+```
+/vuln-scout:full-audit . --since-commit abc1234 --quick --json --no-interactive
+```
+Fully headless PR gate: scan diff, emit JSON, no prompts.
+
+### Specify Language (auto-detected if omitted)
+```
+/vuln-scout:full-audit /path/to/code --language go
+```
+
+Saved scope files are context inputs for Claude-side reasoning and threat modeling. When this workflow invokes `scan_orchestrator.py`, it still passes a real source directory or workspace path to the static tools rather than scanning `.claude/scope-*.md` directly.
+
+---
+
+## Prerequisites
+
+### Validate Dependencies
+
+```bash
+# Check repomix (required for scoping large codebases)
+if ! command -v npx &> /dev/null || ! npx repomix --version &> /dev/null; then
+  echo "Error: repomix required. Install with: npm install -g repomix"
+  exit 1
+fi
+
+# Check target path exists
+if [ ! -d "[path]" ]; then
+  echo "Error: Target path does not exist: [path]"
+  exit 1
+fi
+
+# Ensure .claude output directory exists
+mkdir -p .claude
+```
+
+---
+
+## Critical Rules
+
+### RULE 1: Never Stop at First Critical
+**ALWAYS audit ALL components even after finding critical vulnerabilities.**
+
+A critical in one component does NOT mean other components are safe. In fact, vulnerabilities often chain across components (e.g., SSRF in frontend → SSTI in backend → RCE).
+
+❌ **Wrong**: Find SSTI in Flask backend → Stop scanning → Miss SSRF in Next.js
+✅ **Correct**: Find SSTI in Flask → Continue → Find SSRF in Next.js → Report chain
+
+### RULE 2: Explicit Coverage Reporting
+**ALWAYS report what was analyzed vs skipped in the final report.**
+
+Every audit report MUST include a coverage section:
+```markdown
+## Coverage Report
+
+| Component | Language | Files | Status | Notes |
+|-----------|----------|-------|--------|-------|
+| av/ (Flask backend) | Python | 12 | ✅ Analyzed | SSTI found |
+| front-end/ (Next.js) | TypeScript | 24 | ✅ Analyzed | Server Actions reviewed |
+| shared/utils | JavaScript | 3 | ⚠️ Partial | Only auth.js reviewed |
+| docs/ | Markdown | 15 | ⏭️ Skipped | Documentation only |
+```
+
+### RULE 3: Multi-Framework Parity
+**Analyze ALL frameworks with equal depth.**
+
+When multiple frameworks are detected:
+1. Apply framework-specific patterns to EACH (see `framework-patterns` skill)
+2. Check Next.js: Server Actions, Route Handlers, middleware bypass
+3. Check Flask: SSTI, debug mode, secret key, deserialization
+4. Check for cross-framework chains (SSRF → internal service exploitation)
+
+### RULE 4: Framework pivots default to hotspots
+**If a framework-specific pattern is risky but attacker control is not yet proven, record a hotspot.**
+
+Examples:
+1. Next.js `"use server"` + `redirect()` -> record a hotspot
+2. Flask `render_template_string()` -> record a hotspot
+3. Twig `createTemplate()` -> record a hotspot
+
+For these pivots:
+- read the file and capture evidence
+- do not escalate it to a reportable finding until attacker control and exploit path are shown
+- promote `hotspot -> finding` only after verification proves reachability and impact
+
+---
+
+## Agency Flags
+
+### --no-interactive
+
+When `--no-interactive` is passed, **NEVER call AskUserQuestion**. Instead:
+
+| Decision point | Default behavior without user input |
+|----------------|-------------------------------------|
+| Ambiguous target path | Use current directory (`.`) |
+| Language not detected | Run all language checks |
+| Token count ambiguous | Use Architecture-First strategy |
+| Module count unclear | Default to `--top 3` |
+| Plan checkpoint pending | Auto-continue; mark review state `UNRESOLVED` if reviewer notes remain |
+| Min severity not set | Report all severities |
+
+This flag is designed for orchestrator agents and CI pipelines that cannot respond to interactive prompts.
+
+### --json
+
+When `--json` is passed:
+- Suppress all human-formatted progress boxes and status text
+- At completion, emit a single structured JSON object to stdout (see Step 7 schema)
+- `.claude/findings.json` is always written regardless of this flag
+- The machine-readable JSON output is the **primary** output channel
+
+### --since-commit / --diff-base
+
+- `--since-commit <sha>` is the canonical diff-aware flag
+- `--diff-base <ref>` is a backward-compatible alias
+- both narrow deep-dive analysis while keeping architecture and threat modeling contextual
+
+### --suppressions
+
+- Apply `.vuln-scout-ignore` after aggregation
+- suppressions key off `stable_key`, not file path alone
+
+### --fail-on
+
+- Exit `2` when unsuppressed `finding` entries exist at or above the requested severity
+- `hotspot` entries never trip `--fail-on` by themselves
+
+---
+
+## Workflow
+
+### PRE-FLIGHT: Mandatory Framework Detection (RUN FIRST)
+
+## ⚠️ MANDATORY EXECUTION REQUIREMENT ⚠️
+
+**STOP AND READ THIS FIRST**. You MUST execute the following commands using the Bash tool BEFORE proceeding with any analysis. This is NOT optional documentation - these are REQUIRED tool invocations.
+
+**STEP 1**: Execute this command NOW:
+
+```bash
+echo "=== PRE-FLIGHT FRAMEWORK CHECK ===" && \
+if [ -f "[path]/package.json" ] && grep -q '"next"' "[path]/package.json" 2>/dev/null; then \
+  echo "NEXT.JS DETECTED" && \
+  echo "Server Actions:" && grep -rn '"use server"' --include="*.ts" --include="*.tsx" "[path]" 2>/dev/null | head -10; \
+  echo "Redirects:" && grep -rn 'redirect(' --include="*.ts" --include="*.tsx" "[path]" 2>/dev/null | head -10; \
+fi && \
+if grep -qi 'flask' "[path]/requirements.txt" 2>/dev/null; then \
+  echo "FLASK DETECTED" && \
+  echo "SSTI sinks:" && grep -rn 'render_template_string' --include="*.py" "[path]" 2>/dev/null; \
+fi && \
+if find "[path]" -name "*.sol" -type f 2>/dev/null | grep -q .; then \
+  echo "SOLIDITY DETECTED - Running reentrancy checks" && \
+  echo "External calls:" && grep -rn '\.call{value:' --include="*.sol" "[path]" 2>/dev/null | head -10; \
+  echo "CEI violations (state change after call):" && rg -U "\.call\{value:.*\n.*delete\|\.call\{value:.*\n.*-=" --glob "*.sol" "[path]" 2>/dev/null | head -10; \
+  echo "Reentrancy guards:" && grep -rn 'nonReentrant\|ReentrancyGuard' --include="*.sol" "[path]" 2>/dev/null | head -5; \
+fi
+```
+
+**STEP 2**: Record framework pivots as `hotspot` entries first. If Next.js has Server Actions with redirect(), or Flask has `render_template_string()`, capture evidence and keep them as hotspots until attacker control and exploit path are shown.
+
+---
+
+**Full detection script (for reference)**:
+
+```bash
+# RUN THIS FIRST - Framework Detection
+echo "=== MANDATORY PRE-FLIGHT FRAMEWORK CHECK ==="
+
+# Check for Next.js
+NEXTJS_DETECTED="false"
+if [ -f "[path]/package.json" ] && grep -q '"next"' "[path]/package.json" 2>/dev/null; then
+  NEXTJS_DETECTED="true"
+  echo "✓ NEXT.JS DETECTED - Will run Server Action/SSRF checks"
+
+  # Immediately find Server Actions with redirect
+  echo "  Checking for SSRF vectors (redirect in Server Actions)..."
+  grep -rn '"use server"' --include="*.ts" --include="*.tsx" "[path]" 2>/dev/null || echo "  No Server Actions found"
+  grep -rn 'redirect(' --include="*.ts" --include="*.tsx" "[path]" 2>/dev/null || echo "  No redirect() calls found"
+fi
+
+# Check for Flask
+FLASK_DETECTED="false"
+if [ -f "[path]/requirements.txt" ] && grep -qi 'flask' "[path]/requirements.txt" 2>/dev/null; then
+  FLASK_DETECTED="true"
+  echo "✓ FLASK DETECTED - Will run SSTI/template injection checks"
+
+  # Immediately find SSTI sinks
+  echo "  Checking for SSTI sinks..."
+  grep -rn 'render_template_string' --include="*.py" "[path]" 2>/dev/null || echo "  No render_template_string found"
+fi
+
+# Check for Solidity (Smart Contracts)
+SOLIDITY_DETECTED="false"
+if find "[path]" -name "*.sol" -type f 2>/dev/null | grep -q .; then
+  SOLIDITY_DETECTED="true"
+  echo "✓ SOLIDITY DETECTED - Will run reentrancy/CEI pattern checks"
+
+  # Count Solidity files
+  sol_count=$(find "[path]" -name "*.sol" -type f 2>/dev/null | wc -l)
+  echo "  Found $sol_count Solidity files"
+
+  # Immediately check for reentrancy patterns
+  echo "  Checking for external calls (reentrancy vectors)..."
+  grep -rn '\.call{value:' --include="*.sol" "[path]" 2>/dev/null | head -10 || echo "  No .call{value:} found"
+
+  # Check for CEI violations (the critical pattern)
+  echo "  Checking for CEI violations (state change AFTER external call)..."
+  rg -U "\.call\{value:[^}]*\}[^;]*;[\s\S]{0,100}(delete\s+\w+|\w+\s*-=)" --glob "*.sol" "[path]" 2>/dev/null | head -5 || echo "  No obvious CEI violations found (manual review still recommended)"
+
+  # Check for reentrancy guards
+  echo "  Checking for reentrancy guards..."
+  guard_count=$(grep -rn 'nonReentrant\|ReentrancyGuard' --include="*.sol" "[path]" 2>/dev/null | wc -l)
+  if [ "$guard_count" -gt 0 ]; then
+    echo "  ✓ Found $guard_count reentrancy guard(s)"
+  else
+    echo "  ⚠️  NO REENTRANCY GUARDS FOUND - Manual CEI pattern review required!"
+  fi
+
+  # Check for token callbacks (often missed reentrancy vectors)
+  echo "  Checking for token callbacks (ERC721/777/1155 reentrancy)..."
+  grep -rn 'safeTransfer\|safeMint\|onERC721Received\|tokensReceived' --include="*.sol" "[path]" 2>/dev/null | head -5 || echo "  No token callbacks found"
+fi
+
+# Multi-framework chain warning
+if [ "$NEXTJS_DETECTED" = "true" ] && [ "$FLASK_DETECTED" = "true" ]; then
+  echo ""
+  echo "⚠️  MULTI-FRAMEWORK ARCHITECTURE DETECTED"
+  echo "   CRITICAL: Check for SSRF → SSTI attack chains!"
+  echo "   Next.js redirect() can be exploited to reach internal Flask SSTI"
+  echo ""
+fi
+
+# Solidity-specific warning
+if [ "$SOLIDITY_DETECTED" = "true" ]; then
+  echo ""
+  echo "⚠️  SMART CONTRACT AUDIT MODE"
+  echo "   CRITICAL: All .call{value:} must follow CEI pattern (Checks-Effects-Interactions)"
+  echo "   CRITICAL: State changes MUST happen BEFORE external calls"
+  echo "   See: skills/dangerous-functions/references/solidity-sinks.md"
+  echo "   See: skills/vuln-patterns/references/reentrancy-solidity.md"
+  echo ""
+fi
+
+echo "=== END PRE-FLIGHT ==="
+```
+
+---
+
+### Diff-Aware Scoping (--recent / --since-commit / --diff-base)
+
+**Goal**: When `--recent`, `--since-commit`, or `--diff-base` is passed, identify changed files to prioritize in the deep-dive phase. Threat modeling and architecture mapping always run on the full codebase (context is needed), but deep-dive and module ranking are weighted toward changed code.
+
+#### If `--recent N` is passed:
+
+```bash
+# Find files modified in the last N days
+RECENT_FILES=$(git log --since="$N days ago" --name-only --pretty=format: -- [path] | sort -u | grep -v '^$')
+RECENT_COUNT=$(echo "$RECENT_FILES" | wc -l)
+echo "=== DIFF-AWARE: $RECENT_COUNT files changed in last $N days ==="
+echo "$RECENT_FILES" | head -20
+```
+
+- **Module ranking**: Modules containing recently-changed files are ranked higher (move to top of deep-dive queue)
+- **Deep-dive**: All modules are still eligible, but recent changes get first attention
+- **Report**: Add a "Recent Changes" section listing prioritized files and why
+
+#### If `--since-commit <sha>` is passed:
+
+```bash
+# Find files changed since a commit SHA
+DIFF_FILES=$(git diff --name-only <sha>...HEAD -- [path])
+DIFF_COUNT=$(echo "$DIFF_FILES" | wc -l)
+echo "=== DIFF-AWARE: $DIFF_COUNT files changed since <sha> ==="
+echo "$DIFF_FILES" | head -20
+
+# Also show diff stats for context
+git diff --stat <sha>...HEAD -- [path]
+```
+
+- **Deep-dive scope**: ONLY files in the diff are analyzed for vulnerabilities
+- **Threat modeling**: Still runs on full codebase (needs full architecture context)
+- **Findings outside diff**: If a scanner reports a finding outside the diff, tag it as `"in_diff": false` in findings.json but don't suppress it
+- **Primary use case**: CI pipeline scanning PRs against main
+
+#### If `--diff-base <ref>` is passed:
+
+- treat it as an alias for `--since-commit <ref>`
+- keep the same scope and reporting behavior
+
+#### Interaction with other flags:
+
+| Flag combo | Behavior |
+|-----------|----------|
+| `--diff-base main` | Deep-dive scoped to PR diff, full threat model |
+| `--diff-base main --quick` | Quick scan of PR diff only |
+| `--recent 7 --top 3` | Top 3 modules, weighted by recency |
+| `--diff-base main --scope api` | Diff within the api scope only |
+
+---
+
+### Step 0: Size Check & Strategy Selection
+
+**Goal**: Determine if codebase needs architecture-first approach
+
+```bash
+# Measure token count
+npx repomix [path] --style markdown -o /dev/null 2>&1 | grep "Total Tokens"
+```
+
+**Decision Matrix:**
+
+| Tokens | Strategy | What Happens |
+|--------|----------|--------------|
+| < 50k | Direct Audit | Skip to Step 4 (full code analysis) |
+| 50k - 150k | Direct + Scope | Create scope, run full audit |
+| 150k - 300k | Architecture-First | Steps 1-5 (recommended) |
+| > 300k | Architecture-First | Steps 1-5 (required) |
+
+**Output**: Strategy decision displayed to user
+
+### Step 0.5: Polyglot Detection (Automatic)
+
+**Goal**: Automatically identify if codebase is mixed-language and switch to per-service workflow
+
+```bash
+# Count files by language
+go_count=$(find [path] -name '*.go' ! -path '*/vendor/*' ! -name '*_test.go' 2>/dev/null | wc -l)
+py_count=$(find [path] -name '*.py' ! -path '*/.venv/*' ! -name 'test_*.py' 2>/dev/null | wc -l)
+ts_count=$(find [path] \( -name '*.ts' -o -name '*.tsx' \) ! -path '*/node_modules/*' ! -name '*.test.*' 2>/dev/null | wc -l)
+java_count=$(find [path] -name '*.java' ! -path '*/test/*' ! -name '*Test.java' 2>/dev/null | wc -l)
+rs_count=$(find [path] -name '*.rs' ! -path '*/target/*' 2>/dev/null | wc -l)
+sol_count=$(find [path] -name '*.sol' ! -path '*/node_modules/*' 2>/dev/null | wc -l)
+```
+
+**Polyglot Detection Criteria** (automatic):
+- 2+ languages have >50 source files each → **Polyglot detected**
+- Multiple `Dockerfile`s in different directories → **Polyglot likely**
+- Multiple package managers (go.mod + package.json + requirements.txt) → **Polyglot likely**
+
+When polyglot is detected, the workflow automatically switches to per-service analysis.
+
+**If Polyglot Detected:**
+
+1. **Map services to languages:**
+   ```bash
+   # Find service boundaries
+   find [path] -name 'main.go' -o -name 'main.py' -o -name '*Application.java' 2>/dev/null
+   find [path] -name 'Dockerfile*' 2>/dev/null
+   ```
+
+2. **Generate service map:**
+   ```markdown
+   | Service | Path | Language | Est. Tokens | Risk |
+   |---------|------|----------|-------------|------|
+   | api-gateway | services/gateway/ | Go | 85k | HIGH |
+   | ml-service | services/ml/ | Python | 120k | HIGH |
+   | frontend | apps/web/ | TypeScript | 200k | MEDIUM |
+   ```
+
+3. **Detect inter-service communication:**
+   ```bash
+   # Protocol definitions
+   find [path] -name '*.proto' -o -name 'openapi*.yaml' -o -name '*.graphql'
+   ```
+
+4. **Switch to per-service audit workflow** (see Polyglot Workflow below)
+
+**Output**: Service map and recommended audit order
+
+### Step 1: Language Detection & Framework Security Scan
+
+**Goal**: Detect frameworks and run MANDATORY security checks for each
+
+```bash
+# Auto-detect primary language
+ts_count=$(find [path] -name "*.ts" -o -name "*.tsx" 2>/dev/null | wc -l)
+go_count=$(find [path] -name "*.go" 2>/dev/null | wc -l)
+py_count=$(find [path] -name "*.py" 2>/dev/null | wc -l)
+java_count=$(find [path] -name "*.java" 2>/dev/null | wc -l)
+php_count=$(find [path] -name "*.php" 2>/dev/null | wc -l)
+cs_count=$(find [path] -name "*.cs" 2>/dev/null | wc -l)
+rb_count=$(find [path] -name "*.rb" 2>/dev/null | wc -l)
+rs_count=$(find [path] -name "*.rs" 2>/dev/null | wc -l)
+sol_count=$(find [path] -name "*.sol" 2>/dev/null | wc -l)
+```
+
+#### MANDATORY Framework Security Checks
+
+**Run these checks IMMEDIATELY after detecting frameworks. Do NOT skip.**
+
+**Next.js Detection & Checks:**
+```bash
+# Detect Next.js
+if grep -q '"next"' package.json 2>/dev/null; then
+  echo "Next.js DETECTED - Running MANDATORY security checks..."
+
+  # CHECK 1: Server Actions with redirect() - HOTSPOT until attacker control is proven
+  echo "=== Checking Server Actions with redirect ==="
+  grep -rn '"use server"' --include="*.ts" --include="*.tsx" [path]
+  grep -rn 'redirect(' --include="*.ts" --include="*.tsx" [path]
+
+  # CHECK 2: Route Handlers
+  echo "=== Checking Route Handlers ==="
+  find [path] -path "*/app/api/*" \( -name "route.ts" -o -name "route.tsx" \)
+
+  # CHECK 3: Middleware
+  echo "=== Checking Middleware ==="
+  find [path] -name "middleware.ts" -o -name "middleware.tsx"
+fi
+```
+
+**Flask Detection & Checks:**
+```bash
+# Detect Flask
+if grep -q 'flask' requirements.txt 2>/dev/null || find [path] -name "app.py" | grep -q .; then
+  echo "Flask DETECTED - Running MANDATORY security checks..."
+
+  # CHECK 1: SSTI sinks - HOTSPOT until user-controlled template data is proven
+  echo "=== Checking SSTI sinks ==="
+  grep -rn 'render_template_string' --include="*.py" [path]
+
+  # CHECK 2: Debug mode
+  echo "=== Checking debug mode ==="
+  grep -rn 'debug.*True' --include="*.py" [path]
+fi
+```
+
+**Symfony/Twig Detection & Checks:**
+```bash
+# Detect Symfony/Twig (PHP)
+if [ -f "[path]/symfony.lock" ] || grep -q 'twig/twig' "[path]/composer.json" 2>/dev/null; then
+  echo "SYMFONY/TWIG DETECTED - Running MANDATORY security checks..."
+
+  # CHECK 1: Twig SSTI via createTemplate - HOTSPOT until attacker control is proven
+  echo "=== Checking Twig SSTI sinks ==="
+  grep -rn 'createTemplate\|->render(' --include="*.php" [path]
+
+  # CHECK 2: Check disable_functions (critical for bypass)
+  echo "=== Checking disable_functions bypass vectors ==="
+  grep -rn 'file_put_contents\|copy\|symlink\|chmod' --include="*.php" [path]
+
+  # CHECK 3: Apache AllowOverride for CGI bypass
+  echo "=== Checking Apache CGI configuration ==="
+  grep -rn 'AllowOverride\|Options.*ExecCGI\|AddHandler.*cgi' --include="*.conf" [path]
+
+  # CHECK 4: Twig filter callbacks - can invoke PHP functions
+  echo "=== Twig filter exploitation note ==="
+  echo "CRITICAL: Twig sort/map/filter/reduce filters accept PHP function callbacks"
+  echo "Example: {{[path,content]|sort('file_put_contents')}} calls file_put_contents(path,content)"
+fi
+```
+
+**Cross-Component Chain Check (if multiple frameworks detected):**
+```bash
+# If BOTH Next.js AND Flask/Python backend detected
+if [[ -f package.json ]] && grep -q '"next"' package.json && [[ -f requirements.txt ]]; then
+  echo "MULTI-FRAMEWORK DETECTED - Checking for attack chains..."
+
+  # Check orchestration for internal connectivity
+  cat docker-compose.yml supervisord.conf 2>/dev/null
+
+  # CRITICAL: If Next.js has redirect() AND Flask has render_template_string()
+  # This is a potential SSRF → SSTI → RCE chain!
+  echo "=== CHAIN CHECK: SSRF → SSTI ==="
+  echo "Next.js redirect() can be exploited to reach internal Flask SSTI"
+fi
+```
+
+#### Architecture Scope (for large codebases)
+
+**Language-Specific Compression:**
+
+| Language | Strategy | Expected Reduction |
+|----------|----------|-------------------|
+| Go | Directory-based filtering (interfaces/, handler/, svc/) | **95-97%** |
+| TypeScript/JS | Tree-sitter compression | ~80% |
+| Python | Framework-aware filtering (views/, api/, models/, schemas/) | **85-90%** |
+| Java | Spring pattern filtering (Controller, Service, Repository) | **80-85%** |
+| Rust | Module-based filtering (lib.rs, mod.rs, handlers/, traits/) | **85-90%** |
+| PHP | Laravel/Symfony patterns (Controllers/, Models/, routes/) | **80-85%** |
+| C#/.NET | ASP.NET Core patterns (Controllers/, Services/, Middleware/) | **80-85%** |
+| Ruby | Rails patterns (controllers/, models/, services/) | **85-90%** |
+| Solidity | Contract filtering (contracts/, interfaces/, libraries/) | **70-80%** |
+
+**Go compression command:**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/interfaces/**/*.go,**/handler/**/*.go,**/svc/**/*.go,**/proto/*.go,**/errors/*.go,**/client/**/*.go,**/api/**/*.go,**/types/**/*.go,**/model/**/*.go" \
+  --ignore "*_test.go,**/testing/**,**/testdata/**,**/*.pb.go,**/*_mock.go" \
+  --output .claude/scope-architecture.md
+```
+
+**Python compression command (Django/Flask/FastAPI):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/views/**/*.py,**/api/**/*.py,**/routes/**/*.py,**/endpoints/**/*.py,**/routers/**/*.py,**/models/**/*.py,**/schemas/**/*.py,**/serializers/**/*.py,**/services/**/*.py,**/handlers/**/*.py,**/middleware/**/*.py,**/auth/**/*.py,**/core/**/*.py" \
+  --ignore "**/*_test.py,**/test_*.py,**/tests/**,**/__pycache__/**,**/migrations/**,**/.venv/**" \
+  --output .claude/scope-architecture.md
+```
+
+**Java compression command (Spring):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/*Controller*.java,**/*Service*.java,**/*ServiceImpl*.java,**/*Repository*.java,**/*Api*.java,**/*Handler*.java,**/*Filter*.java,**/*Config*.java,**/model/**/*.java,**/dto/**/*.java,**/entity/**/*.java,**/security/**/*.java" \
+  --ignore "**/test/**,**/*Test.java,**/*Tests.java,**/target/**" \
+  --output .claude/scope-architecture.md
+```
+
+**Rust compression command:**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/lib.rs,**/mod.rs,**/api/**/*.rs,**/handlers/**/*.rs,**/routes/**/*.rs,**/services/**/*.rs,**/models/**/*.rs,**/auth/**/*.rs,**/middleware/**/*.rs,**/types/**/*.rs,**/traits/**/*.rs" \
+  --ignore "**/target/**,**/*_test.rs,**/tests/**,**/benches/**" \
+  --output .claude/scope-architecture.md
+```
+
+**PHP compression command (Laravel/Symfony):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/app/Http/Controllers/**/*.php,**/app/Http/Middleware/**/*.php,**/app/Models/**/*.php,**/app/Services/**/*.php,**/routes/**/*.php,**/src/Controller/**/*.php,**/src/Entity/**/*.php,**/src/Service/**/*.php,**/src/Security/**/*.php" \
+  --ignore "**/vendor/**,**/tests/**,**/*Test.php,**/cache/**,**/storage/**" \
+  --output .claude/scope-architecture.md
+```
+
+**C#/.NET compression command (ASP.NET Core):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/*Controller*.cs,**/Controllers/**/*.cs,**/Services/**/*.cs,**/Repositories/**/*.cs,**/Models/**/*.cs,**/Middleware/**/*.cs,**/Authorization/**/*.cs,**/*Service.cs,**/Program.cs,**/Startup.cs" \
+  --ignore "**/bin/**,**/obj/**,**/tests/**,**/*Test*.cs,**/packages/**" \
+  --output .claude/scope-architecture.md
+```
+
+**Ruby compression command (Rails):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/app/controllers/**/*.rb,**/app/models/**/*.rb,**/app/services/**/*.rb,**/app/policies/**/*.rb,**/config/routes.rb,**/config/initializers/**/*.rb,**/lib/**/*.rb" \
+  --ignore "**/vendor/**,**/spec/**,**/test/**,**/*_spec.rb,**/*_test.rb,**/tmp/**" \
+  --output .claude/scope-architecture.md
+```
+
+**Solidity compression command (Smart Contracts):**
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/*.sol,**/contracts/**/*.sol,**/src/**/*.sol,**/interfaces/**/*.sol,**/libraries/**/*.sol" \
+  --ignore "**/node_modules/**,**/test/**,**/*Test.sol,**/mocks/**,**/forge-std/**" \
+  --output .claude/scope-architecture.md
+```
+
+**Output**: `.claude/scope-architecture.md`
+
+### Step 2: Threat Modeling
+
+**Goal**: Systematic threat identification via STRIDE
+
+Using the compressed architecture scope:
+1. Identify components (services, handlers, data stores)
+2. Map trust boundaries between components
+3. Generate data flow diagrams (Mermaid)
+4. Perform STRIDE analysis per component
+5. Risk scoring (Impact x Likelihood)
+
+**Output**: `.claude/threat-model.md`
+
+Before creating `.claude/audit-plan.md`, adversarially review the threat model using the same 3-angle loop defined in `/vuln-scout:threats`:
+- missed threats
+- STRIDE / trust-boundary correctness
+- false positives / bad prioritization
+
+Persist those rounds to `.claude/review-ledger.json` with `subject_type: "threat-model"` and update `review_state.threat_model` before moving on.
+
+### Step 2.5: Audit Plan Artifact
+
+**Goal**: Persist the audit sequence before spending tokens on deep dives.
+
+Write `.claude/audit-plan.md` immediately after threat modeling. This artifact is REQUIRED even in `--quick` mode. Quick mode uses a condensed plan, but it still includes every required section:
+
+```markdown
+# Audit Plan: [Application Name]
+
+## Context
+[Why this audit exists, scope boundaries, and whether `--quick` condensed the plan]
+
+## Audit Strategy
+[Direct vs architecture-first, manual-review emphasis, tools to invoke]
+
+## Module Prioritization
+| Module | Why now | Planned depth | Diff-sensitive |
+|--------|---------|---------------|----------------|
+
+## Attack Surfaces
+- [Entry points, trust boundaries, external integrations, hotspot pivots]
+
+## Verification Strategy
+- [How findings will be cold-reviewed, when to use Joern, what stays `needs_review`]
+
+## Task List
+- [Self-contained audit tasks ordered for execution]
+
+## Audit Scenarios
+- Given/When/Then scenarios for multi-step paths, especially if `--top` > 1
+```
+
+### Step 2.6: Audit Plan Review Loop
+
+**Goal**: Challenge the plan before deep-dive execution.
+
+Run 3 parallel review angles against `.claude/audit-plan.md`:
+1. **Coverage reviewer** — missed attack surfaces / coverage gaps
+2. **Prioritization reviewer** — bad prioritization / false urgency
+3. **Alignment reviewer** — threat-model-to-module mismatch
+
+Review contract for each reviewer:
+- `APPROVED` — plan is acceptable for this angle
+- `CHANGES_REQUESTED` — concrete fix required before proceeding
+
+Workflow:
+1. Spawn all 3 reviewers in parallel using the Task tool.
+2. Apply their fixes to `.claude/audit-plan.md`.
+3. Re-run all 3 reviewers on the full revised plan.
+4. Stop after 3 rounds maximum.
+5. If any issue is still open after round 3, append `[REVIEWER NOTE: unresolved]` directly in the affected plan section and record the subject as `UNRESOLVED` in `.claude/review-ledger.json`.
+
+Persist every round in `.claude/review-ledger.json` with:
+- `subject_type: "audit-plan"`
+- `subject_id`: stable identifier for the plan
+- `round`
+- `reviewers`
+- `status`: `APPROVED`, `CHANGES_REQUESTED`, or `UNRESOLVED`
+- `notes`
+
+### Step 2.7: Human Checkpoint (interactive by default)
+
+After the internal plan review loop:
+- if interactive: use `AskUserQuestion` and offer `Approve`, `Request changes`, or `Continue without approval`
+- if the user requests changes: update `.claude/audit-plan.md`, then re-run the full 3-reviewer loop on the full plan
+- if `--no-interactive` is set: NEVER call `AskUserQuestion`; auto-continue if no unresolved notes remain, otherwise continue without approval and mark `review_state.audit_plan` as `UNRESOLVED`
+
+### Step 3: High-Risk Module Identification
+
+**Goal**: Select modules for deep-dive audit
+
+**Scoring Criteria:**
+| Factor | Points |
+|--------|--------|
+| Has CRITICAL threats | +50 |
+| Has HIGH threats | +30 |
+| Is entry point (handler/route) | +20 |
+| Has external integrations | +20 |
+| Handles auth/secrets | +30 |
+| Token count < 150k | +10 |
+
+Use `.claude/audit-plan.md` as the source of truth for:
+- module order
+- attack-surface rationale
+- which scenarios require deeper verification or dynamic follow-up
+
+**Output**: Ranked list of modules, top N selected for audit
+
+### Step 4: Deep Dive Audit (Per Module)
+
+**Goal**: Find vulnerabilities by READING CODE, not just running tools.
+
+**IMPORTANT**: Audit ALL modules, even after finding critical issues. Never stop early.
+
+**CRITICAL PRINCIPLE**: YOU are the primary vulnerability discoverer. Static tools (Semgrep, Joern, CodeQL) are supplements that run in parallel. You must read source files, trace data flows, and reason about exploitability -- this is what makes VulnScout different from every other scanner.
+
+For each selected module:
+
+#### 4a. Read the source code
+
+**Read every file in the module.** Use the Read tool on each source file. For large modules, prioritize:
+1. Route handlers / controllers (where user input enters)
+2. Database queries / ORM calls (where injection happens)
+3. Template rendering (where XSS happens)
+4. File operations (where traversal happens)
+5. HTTP client calls (where SSRF happens)
+6. Authentication / authorization logic (where bypass happens)
+
+Do NOT skip this step. Do NOT rely solely on grep patterns. Read the actual code and understand what it does.
+
+#### 4b. Find dangerous sinks
+
+Using the `dangerous-functions` skill as reference, search for security-sensitive function calls in the module:
+
+```bash
+# Find ALL dangerous sinks in the module (adapt patterns per language)
+grep -rn 'query\|execute\|eval\|exec\|system\|include\|require\|render\|template\|serialize\|unserialize\|readFile\|writeFile\|redirect\|fetch\|request\|innerHTML' [module-path] --include="*.php" --include="*.py" --include="*.js" --include="*.ts" --include="*.java" --include="*.go" --include="*.rb"
+```
+
+Then READ each file containing a dangerous sink. Understand the full context.
+
+#### 4c. Trace data flow from user input to each sink
+
+For each dangerous sink found, trace backwards:
+
+1. **Identify the sink** (the dangerous function call)
+2. **Read the arguments** -- what variable is passed to it?
+3. **Trace that variable backwards** -- where was it assigned? Where did the data come from?
+4. **Find the source** -- is it user-controlled? (`req.body`, `$_GET`, `request.getParameter()`, `r.URL.Query()`, etc.)
+5. **Check for sanitization** -- is there encoding, escaping, parameterization, or validation between source and sink?
+6. **Assess exploitability** -- can an attacker actually craft input that reaches the sink unsanitized?
+
+Use the `data-flow-tracing` skill for language-specific tracing templates.
+
+**Example (PHP)**:
+```
+Sink: mysqli_query($conn, $query)  at vulnerabilities/sqli/source/low.php:12
+  ↑ $query = "SELECT ... WHERE user_id = '$id'"  (line 10)
+  ↑ $id = $_REQUEST['id']  (line 5)
+  ↑ Source: $_REQUEST (user-controlled)
+  Sanitization: NONE
+  Verdict: VERIFIED -- SQL injection via string interpolation
+```
+
+**Example (Java)**:
+```
+Sink: statement.executeQuery(query)  at SqlInjectionLesson.java:56
+  ↑ query = "SELECT ... WHERE name = '" + name + "'"
+  ↑ name = request.getParameter("name")
+  ↑ Source: HTTP parameter (user-controlled)
+  Sanitization: NONE
+  Verdict: VERIFIED -- SQL injection via string concatenation
+```
+
+#### 4d. Check for missing security controls
+
+Beyond injection vulnerabilities, check each endpoint/handler for:
+
+- **Missing authentication**: Does this handler check if the user is logged in? (invoke the `business-logic` skill)
+- **Missing authorization**: Does it verify the user owns the requested resource? (IDOR check)
+- **Missing CSRF protection**: Is this a state-changing endpoint accessible via GET without a token?
+- **Missing rate limiting**: Is this a login/sensitive endpoint without throttling?
+- **Stored data rendering**: If user data is saved, is it HTML-encoded when displayed later?
+
+These are business logic vulnerabilities that NO static tool can find. YOU must find them by reading the code and reasoning about what's missing.
+
+#### 4e. Run static tools as supplement
+
+Run the automated scan to catch patterns you might have missed:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/scan_orchestrator.py" [module-path] \
+  --tools semgrep,joern \
+  --format json
+```
+
+After it completes, **read `.claude/findings.json`** to see what the tools found. The `entry_points` array tells you every HTTP endpoint and whether it has auth. The `findings` array shows what the tools flagged. Use both to guide further manual review:
+
+- **Unauthenticated entry points** with no findings → read those files, the tools may have missed something
+- **Files with tool findings** → read the surrounding code for additional vulns in the same file
+- **Entry points handling sensitive operations** (login, payment, admin) → verify auth and CSRF manually
+
+Merge tool findings with your manual findings. The tools catch syntax patterns; your manual review catches logic flaws, missing controls, and cross-component issues.
+
+#### 4f. Apply framework-specific patterns
+
+Check framework-specific anti-patterns (see `skills/framework-patterns` for each):
+
+- **Next.js**: Server Actions + redirect (SSRF), Route Handlers without auth, Server Component data leaks
+- **Flask**: render_template_string (SSTI), debug mode, secret key exposure
+- **Django**: ORM bypass (.raw(), .extra()), CSRF exemptions, settings exposure
+- **Spring**: SpEL injection, actuator exposure, CORS/CSRF misconfiguration
+- **Rails**: mass assignment, SQL interpolation, ERB injection, Marshal.load
+- **PHP**: superglobal injection ($_GET → SQL/eval/include), file upload without validation
+- **GraphQL**: introspection enabled, missing depth/complexity limits, nested auth bypass
+
+#### 4g. Build the candidate finding set
+
+Candidate findings for the module come from:
+- your manual review
+- tool output from `scan_orchestrator.py`
+- the `code-reviewer` agent running as an independent hunter
+
+Use the code-reviewer agent for a fresh second opinion:
+
+```
+Use Agent tool with:
+  subagent_type: "vuln-scout:code-reviewer"
+  prompt: |
+    Review this module for security vulnerabilities:
+    - Module: [module-path]
+    - Focus areas: [threats from threat model]
+    - Findings so far: [your findings summary only]
+    - Look for: anything I missed, especially business logic flaws
+```
+
+Merge any additional candidates into one module-level candidate set before classification.
+
+#### 4h. Run the module finding review loop
+
+For each candidate finding, invoke the `false-positive-verifier` as a cold reviewer. Do NOT pass prior chain-of-thought; pass only:
+- finding summary
+- file and line
+- code context
+- Joern result (if any)
+- threat-model focus for the module
+
+Expected orchestration contract:
+- `APPROVED` — finding stands as revised
+- `CHANGES_REQUESTED` — evidence, classification, or scope must change
+
+The verifier's security verdict still maps to the shared findings contract:
+- `verified`
+- `false_positive`
+- `needs_review`
+- `na_cpg`
+
+Loop rules:
+1. Review the candidate cold with `false-positive-verifier`.
+2. If the verifier requests changes, revise the finding, downgrade it to `hotspot`, or drop it entirely.
+3. Re-run a NEW `false-positive-verifier` invocation on the revised candidate.
+4. Stop after 3 rounds maximum per module.
+5. If still unresolved after round 3, keep the finding as `needs_review`, append `[REVIEWER NOTE: unresolved]` to the module notes, and record the subject as `UNRESOLVED` in `.claude/review-ledger.json`.
+
+Persist each module review subject with:
+- `subject_type: "module-findings"`
+- `subject_id`: module path or stable module key
+- `round`
+- `reviewers`
+- `status`
+- `notes`
+
+#### 4i. Document all findings
+
+For each vulnerability that survives the review loop:
+
+- **id**: Sequential VSCOUT-XXXX
+- **type**: sql-injection, xss, command-injection, path-traversal, ssrf, idor, etc.
+- **file**: Exact file path
+- **line**: Exact line number of the sink
+- **evidence**: Source → hops → sink with line references
+- **verdict**: verified (you confirmed it) or needs_review (uncertain)
+- **kind**: finding (confirmed vuln) or hotspot (suspicious but unconfirmed)
+
+Unresolved items must remain `needs_review`; never auto-promote them to `finding` without evidence.
+
+**Output**: Findings per module + corresponding review ledger subjects
+
+### Step 5: Cross-Component Chain Analysis
+
+**Goal**: Connect vulnerabilities across service boundaries (see `vulnerability-chains` skill)
+
+1. **Map SSRF sources** in external services:
+   - Next.js redirect(), fetch with user URL
+   - API endpoints that make outbound requests
+
+2. **Map high-impact sinks** in internal services:
+   - SSTI (render_template_string, Template)
+   - Unsafe deserialization
+   - Command injection (exec, spawn, system)
+
+3. **Connect pivots to sinks**:
+   - Can SSRF reach internal SSTI endpoint?
+   - Does user input flow from pivot to sink?
+   - What filters/sanitization exist in the path?
+
+4. **Document chains**:
+   ```markdown
+   ## Chain: SSRF → SSTI → RCE
+   - Entry: Next.js Server Action redirect (external)
+   - Pivot: Host header SSRF
+   - Sink: Flask render_template_string (internal)
+   - Impact: Remote Code Execution
+   ```
+
+**Output**: Chain findings added to report
+
+### Step 5.5: Dynamic Verification (--verify-dynamic only)
+
+**Goal**: Confirm exploitability of verified findings by generating and executing PoC scripts.
+
+**This phase is SKIPPED unless `--verify-dynamic` is passed.** It runs after chain analysis and before reporting.
+
+#### Pipeline
+
+```
+For each finding with verdict: "verified" AND severity: critical|high:
+
+1. poc-developer agent generates a PoC script
+   → Script MUST have check(), exploit(), cleanup() structure
+   → Script MUST include --dry-run flag support
+   → Output: /tmp/poc-<finding-id>.py (or .sh/.ts)
+
+2. poc-safety-check hook fires (BLOCKING)
+   → Displays: finding summary, PoC code, target, potential impact
+   → REQUIRES explicit user confirmation ("yes") to proceed
+   → User can skip individual PoCs or abort all
+
+3. local-tester agent executes the PoC
+   → Default: --dry-run mode (validates setup, does not exploit)
+   → With --execute: runs full exploit with 30-second timeout
+   → Captures: stdout, stderr, exit code
+   → Checks for expected exploit indicators
+
+4. Results feed back into findings.json
+   → dynamic_verified: true (exploit confirmed) or false (not exploitable)
+   → poc_output: brief summary of captured output
+```
+
+#### Safety Guardrails (non-negotiable)
+
+| Rule | Enforcement |
+|------|-------------|
+| Opt-in only | `--verify-dynamic` flag required; never automatic |
+| User confirmation | poc-safety-check hook blocks until explicit "yes" per PoC |
+| Dry-run default | PoCs run with `--dry-run` unless `--execute` is also passed |
+| Timeout | 30 seconds max per PoC execution |
+| Cleanup required | All PoC scripts must include `cleanup()` that reverses any changes |
+| No outbound exploits | SSRF, reverse shells, and network-facing PoCs require separate confirmation |
+
+#### Example output
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║  Dynamic Verification Results                                 ║
+║                                                               ║
+║  Findings tested: 3 of 5 verified critical/high              ║
+║  ✓ VULN-001 SQLi: dynamic_verified=true (data exfiltrated)   ║
+║  ✗ VULN-003 SSRF: dynamic_verified=false (port blocked)      ║
+║  ⏭ VULN-005 RCE: skipped by user                             ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+**Output**: Updated findings with `dynamic_verified` and `poc_output` fields
+
+### Step 6: Report Generation
+
+**Goal**: Actionable security report with coverage transparency
+
+```
+1. Generate COVERAGE REPORT (mandatory)
+2. Aggregate findings from all modules
+3. Include cross-component chains
+4. Include architecture diagrams from threat model
+5. Sort by severity and verification confidence
+6. Include specific remediation guidance
+7. Generate executive summary
+```
+
+**Coverage Report** (REQUIRED in every report):
+```markdown
+## Coverage Report
+
+| Component | Language | Files | Status | Findings |
+|-----------|----------|-------|--------|----------|
+| frontend/ | Next.js/TS | 24 | ✅ Analyzed | 1 HIGH |
+| backend/ | Flask/Python | 12 | ✅ Analyzed | 1 CRITICAL |
+| shared/ | JavaScript | 5 | ✅ Analyzed | None |
+| docs/ | Markdown | 10 | ⏭️ Skipped | N/A |
+
+Total: 41 files analyzed, 10 skipped
+```
+
+**Report Guidelines**:
+- Document vulnerability building blocks, not ready-to-use exploits
+- Show "Vulnerability Connections" section for chains
+- Include verification checklist for multi-step attack chains
+- Let analysts verify before developing working exploits
+- Separate `finding` entries from `hotspot` entries; hotspots stay in a follow-up section and do not affect severity totals
+- Include a **Manual Review Required** section for any item left `needs_review`
+- Summarize adversarial review outcomes, including any `[REVIEWER NOTE: unresolved]` items
+
+**Output**: `.claude/audit-report.md`
+
+### Step 7: JSON Findings Export (MANDATORY)
+
+**Goal**: Generate machine-readable findings for integration with security tools
+
+After generating the markdown report, you MUST also create a structured JSON file:
+
+**Output File**: `.claude/findings.json`
+
+**Schema source of truth**: `vuln-scout/references/findings.schema.json`
+
+**Artifact contract** (REQUIRED - follow the shared schema exactly):
+```json
+{
+  "schema_version": "1.2.0",
+  "scan_id": "uuid-v4",
+  "project_path": "/path/to/project",
+  "completed_at": "2026-03-24T00:00:00Z",
+  "source_tool": "full-audit",
+  "summary": {
+    "total_findings": 2,
+    "total_hotspots": 1,
+    "critical": 1,
+    "high": 1,
+    "medium": 0,
+    "low": 0,
+    "info": 0
+  },
+  "findings": [
+    {
+      "id": "VSCOUT-001",
+      "stable_key": "full-audit:sql-injection:src/api/users.ts:42",
+      "kind": "finding",
+      "title": "SQL Injection in getUser()",
+      "severity": "critical",
+      "cwe": "CWE-89",
+      "file": "src/api/users.ts",
+      "line": 42,
+      "type": "sql-injection",
+      "verdict": "verified",
+      "confidence": "verified",
+      "source_tool": "full-audit",
+      "message": "User input reaches db.query without parameterization.",
+      "trust_metadata": {
+        "provenance": {
+          "origin": "human_review",
+          "contributors": ["deterministic_tool", "human_review"]
+        },
+        "exploitability_status": "confirmed",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "Source-to-sink evidence was manually reviewed."
+        },
+        "confidence_reason": "Manual review confirmed unparameterized user input reaches the SQL sink."
+      },
+      "evidence": [
+        {
+          "type": "code",
+          "label": "interpolated query",
+          "path": "src/api/users.ts",
+          "line": 42,
+          "excerpt": "db.query(`SELECT * FROM users WHERE id = '${userId}'`)"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**IMPORTANT - Shared field conventions** (consistent across scan, verify, and full-audit):
+1. Generate this JSON file using the Write tool AFTER generating the markdown report
+2. **schema_version**: always `"1.2.0"` for new artifacts; older artifacts are accepted by renderers and migrated in memory
+3. **kind**: `"finding"` or `"hotspot"`
+4. **severity**: `"critical"`, `"high"`, `"medium"`, `"low"`, `"info"`
+5. **confidence**: `"verified"`, `"high"`, `"medium"`, `"low"`
+6. **verdict**: `"verified"`, `"false_positive"`, `"needs_review"`, `"unverified"`, `"na_cpg"`
+7. **source_tool** and **evidence**: required on every finding entry
+8. **summary**: always `{total_findings, total_hotspots, critical, high, medium, low, info}`
+9. Severity totals count only unsuppressed entries where `kind == "finding"`
+10. Framework pivots such as `redirect()` and `render_template_string()` should start as `hotspot`, not `finding`
+11. **in_diff** (optional): `true`/`false` when diff-aware mode is used
+12. **dynamic_verified** (optional): `true`/`false` when `--verify-dynamic` executes a PoC
+13. **suppressed** and **suppression_reason** are optional when `.vuln-scout-ignore` is applied
+
+**Bash command to validate JSON output:**
+```bash
+# Verify JSON is valid
+python3 -c "import json; json.load(open('.claude/findings.json'))" && echo "✓ Valid JSON"
+```
+
+---
+
+## Execution Flow
+
+### Setup Phase
+
+```bash
+# Create output directory
+mkdir -p .claude
+
+# Check prerequisites
+npx repomix --version  # Required for scoping
+```
+
+### Progress Display
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                    FULL AUDIT IN PROGRESS                      ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  [✓] Step 0: Size check                                       ║
+║      → 1.68M tokens detected                                   ║
+║      → Strategy: Architecture-First                            ║
+║                                                                ║
+║  [✓] Step 1: Architecture scope                               ║
+║      → Language: Go                                            ║
+║      → Compressed: 1.68M → 47k tokens (97% reduction)         ║
+║                                                                ║
+║  [✓] Step 2: Threat modeling                                  ║
+║      → Components: 24                                          ║
+║      → Trust boundaries: 5                                     ║
+║      → Threats: 3 CRITICAL, 5 HIGH                            ║
+║                                                                ║
+║  [✓] Step 2.5: Audit plan + review                            ║
+║      → Plan: .claude/audit-plan.md                             ║
+║      → Review rounds: 2 (status: APPROVED)                     ║
+║                                                                ║
+║  [✓] Step 3: Module identification                            ║
+║      → Modules ranked: 8                                       ║
+║      → Selected for audit: 3                                   ║
+║                                                                ║
+║  [▸] Step 4: Deep dive audit                                  ║
+║      → query-service (1/3)...                                  ║
+║                                                                ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+### Completion Summary
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                    AUDIT COMPLETE                              ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  Target: /path/to/code                                         ║
+║  Size: 1.68M tokens → 47k architecture + 3 module scopes      ║
+║  Duration: 4m 32s                                              ║
+║                                                                ║
+║  Findings:                                                     ║
+║  ├── CRITICAL: 3                                              ║
+║  ├── HIGH:     5                                              ║
+║  ├── MEDIUM:   8                                              ║
+║  └── LOW:      4                                              ║
+║                                                                ║
+║  Output Files:                                                 ║
+║  ├── .claude/scope-architecture.md (47k tokens)               ║
+║  ├── .claude/threat-model.md                                  ║
+║  ├── .claude/audit-plan.md                                    ║
+║  ├── .claude/review-ledger.json                               ║
+║  ├── .claude/scope-query-service.md                           ║
+║  ├── .claude/scope-index-service.md                           ║
+║  ├── .claude/scope-data-export.md                             ║
+║  ├── .claude/audit-report.md                                  ║
+║  ├── .claude/findings.json          (machine-readable)        ║
+║  └── .claude/vuln-scout-state.json (orchestrator state) ║
+║                                                                ║
+║  Top Issues:                                                   ║
+║  1. Query Injection (query-service/svc/service.go:142)        ║
+║  2. Filter Bypass (query-service/interfaces/data_selector.go) ║
+║  3. Secret Exposure (services/data-export/common/)            ║
+║                                                                ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## Quick Mode (--quick)
+
+Skip threat modeling for faster results:
+
+```
+/vuln-scout:full-audit /path/to/code --quick
+```
+
+**Quick mode**:
+- ✓ Step 0: Size check
+- ✓ Step 1: Architecture scope (if needed)
+- ✗ Step 2: Threat model (skipped)
+- ✓ Step 2.5: Condensed audit plan (still writes `.claude/audit-plan.md`)
+- ✓ Step 2.6: Single-round plan review
+- ✓ Step 3: Module identification (uses file patterns instead)
+- ✓ Step 4: Deep dive audit
+- ✓ Step 5: Report
+
+**Use when**: You need fast results and will do detailed threat modeling later.
+
+---
+
+## Polyglot Workflow (Automatic)
+
+When a mixed-language monorepo is detected, the workflow automatically adapts:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 POLYGLOT AUDIT PIPELINE                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Step 0: POLYGLOT DETECTION                                 │
+│  └─> Count languages, map services, detect protocols        │
+│                                                              │
+│  Step 1: SERVICE DISCOVERY                                   │
+│  └─> Map services → languages → communication protocols     │
+│                                                              │
+│  Step 2: CROSS-SERVICE ARCHITECTURE SCOPE                   │
+│  └─> Lightweight scope of all services + protocol defs      │
+│                                                              │
+│  Step 3: CROSS-SERVICE THREAT MODEL                         │
+│  └─> Trust boundaries between services, data flows          │
+│                                                              │
+│  Step 3.5: CROSS-SERVICE AUDIT PLAN                         │
+│  └─> Persist plan + review ledger before service deep dives │
+│                                                              │
+│  Step 4: PER-SERVICE DEEP DIVE (by priority)                │
+│  └─> Each service scoped with its language strategy         │
+│  └─> Language-specific sinks applied                        │
+│                                                              │
+│  Step 5: CROSS-SERVICE VERIFICATION                         │
+│  └─> Verify data flows across service boundaries            │
+│  └─> Check auth token propagation, schema validation        │
+│                                                              │
+│  Step 6: UNIFIED REPORT                                      │
+│  └─> All findings + cross-service issues                    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Polyglot Step 1: Service Discovery
+
+```bash
+# Generate service inventory
+echo "=== Service Discovery ==="
+
+# Go services
+for f in $(find [path] -name 'main.go' 2>/dev/null); do
+  dir=$(dirname "$f")
+  tokens=$(npx repomix "$dir" --style markdown -o /dev/null 2>&1 | grep "Total Tokens" | awk '{print $3}')
+  echo "Go: $dir ($tokens tokens)"
+done
+
+# Python services
+for f in $(find [path] \( -name 'main.py' -o -name 'app.py' -o -name 'manage.py' \) 2>/dev/null); do
+  dir=$(dirname "$f")
+  tokens=$(npx repomix "$dir" --style markdown -o /dev/null 2>&1 | grep "Total Tokens" | awk '{print $3}')
+  echo "Python: $dir ($tokens tokens)"
+done
+
+# TypeScript/Node services
+for f in $(find [path] -name 'package.json' ! -path '*/node_modules/*' 2>/dev/null); do
+  dir=$(dirname "$f")
+  if grep -q '"start"' "$f" 2>/dev/null; then
+    tokens=$(npx repomix "$dir" --style markdown -o /dev/null 2>&1 | grep "Total Tokens" | awk '{print $3}')
+    echo "TypeScript/JS: $dir ($tokens tokens)"
+  fi
+done
+```
+
+### Polyglot Step 2: Cross-Service Architecture Scope
+
+Create a lightweight architecture-only scope capturing all services:
+
+```bash
+npx repomix [path] --compress --style markdown \
+  --include "**/proto/**/*.proto,**/openapi*.yaml,**/swagger*.yaml,**/*.graphql,**/docker-compose*.yml,**/Dockerfile*,**/main.go,**/main.py,**/app.py,**/index.ts,**/*Application.java,**/Cargo.toml,**/go.mod,**/package.json,**/requirements.txt,**/pyproject.toml" \
+  --ignore "**/node_modules/**,**/vendor/**,**/target/**,**/.venv/**,**/dist/**,**/build/**,**/__pycache__/**" \
+  --output .claude/scope-architecture-polyglot.md
+```
+
+### Polyglot Step 3: Cross-Service Threat Model
+
+When threat modeling polyglot systems, focus on:
+
+1. **Service Boundaries as Trust Boundaries**
+   - Every service-to-service call is a potential trust boundary
+   - Auth tokens must be validated at each hop
+
+2. **Protocol-Specific Threats**
+   | Protocol | Threats |
+   |----------|---------|
+   | gRPC | No auth interceptor, reflection exposed, large message DoS |
+   | REST | CORS misconfiguration, header injection, missing HTTPS |
+   | Kafka | Unauthenticated broker, message injection, poison message |
+   | GraphQL | Query depth attack, introspection exposure, batching abuse |
+
+3. **Data Flow Diagram (Cross-Service)**
+   ```mermaid
+   graph TB
+       subgraph External
+           User[User]
+       end
+       subgraph Gateway[API Gateway - Go]
+           Auth[Auth Middleware]
+           Router[Router]
+       end
+       subgraph Services
+           AuthSvc[Auth Service - Go]
+           MLSvc[ML Service - Python]
+           DataSvc[Data Service - Java]
+       end
+       subgraph Data
+           DB[(PostgreSQL)]
+           Queue[Kafka]
+       end
+
+       User -->|HTTPS| Auth
+       Auth --> Router
+       Router -->|gRPC| AuthSvc
+       Router -->|REST| MLSvc
+       MLSvc -->|Kafka| Queue
+       Queue --> DataSvc
+       DataSvc -->|SQL| DB
+   ```
+
+### Polyglot Step 4: Per-Service Deep Dive
+
+For each service in priority order:
+
+1. **Create language-specific scope:**
+   ```bash
+   # Go service
+   npx repomix services/auth --compress --style markdown \
+     --include "**/interfaces/**/*.go,**/handler/**/*.go,**/svc/**/*.go" \
+     --ignore "*_test.go,**/*.pb.go" \
+     --output .claude/scope-auth.md
+
+   # Python service
+   npx repomix services/ml --compress --style markdown \
+     --include "**/api/**/*.py,**/routes/**/*.py,**/models/**/*.py,**/schemas/**/*.py" \
+     --ignore "**/*_test.py,**/tests/**" \
+     --output .claude/scope-ml.md
+   ```
+
+2. **Apply language-specific sinks** (see `dangerous-functions` skill):
+   - Go sinks: os/exec, database/sql, html/template
+   - Python sinks: eval, subprocess, raw SQL, deserialization
+   - Java sinks: Runtime, JDBC, serialization
+   - TypeScript sinks: eval, child_process, DOM APIs
+
+3. **Trace cross-service data flows:**
+   - Input enters at Gateway → Where does it flow?
+   - Which services handle user-controlled data?
+   - Where are sanitization/validation points?
+
+### Polyglot Step 5: Cross-Service Verification
+
+Check common cross-service vulnerabilities:
+
+1. **Auth Token Propagation**
+   ```bash
+   # Find how auth is passed between services
+   grep -rniE "X-User-ID|X-Auth|Authorization|Bearer" --include="*.go" --include="*.py" --include="*.java" --include="*.ts"
+   ```
+
+2. **Input Validation Gaps**
+   ```bash
+   # Find services that trust upstream validation
+   grep -rniE "validated upstream|validated by gateway|trusted input" --include="*.go" --include="*.py" --include="*.java"
+   ```
+
+3. **Error Message Leakage**
+   ```bash
+   # Find error pass-through patterns
+   grep -rniE "err\.Error\(\)|str\(e\)|e\.getMessage\(\)" --include="*.go" --include="*.py" --include="*.java"
+   ```
+
+4. **Schema Mismatches**
+   ```bash
+   # Compare proto versions across services
+   diff <(grep "message\|field" services/auth/proto/*.proto) <(grep "message\|field" services/ml/proto/*.proto)
+   ```
+
+### Polyglot Progress Display
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                 POLYGLOT AUDIT IN PROGRESS                    ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  [✓] Step 0: Polyglot detection                              ║
+║      → Languages: Go (450), Python (380), TypeScript (420)    ║
+║      → Services: 5 detected                                   ║
+║                                                                ║
+║  [✓] Step 1: Service discovery                               ║
+║      → api-gateway (Go, 85k tokens, HIGH)                    ║
+║      → auth-service (Go, 45k tokens, CRITICAL)               ║
+║      → ml-pipeline (Python, 120k tokens, HIGH)               ║
+║      → web-frontend (TypeScript, 200k tokens, MEDIUM)        ║
+║      → data-processor (Java, 90k tokens, MEDIUM)             ║
+║                                                                ║
+║  [✓] Step 2: Cross-service architecture scope                ║
+║      → Protocol defs: 15 proto, 2 OpenAPI                    ║
+║      → Scope: .claude/scope-architecture-polyglot.md         ║
+║                                                                ║
+║  [✓] Step 3: Cross-service threat model                      ║
+║      → Trust boundaries: 6                                    ║
+║      → Cross-service threats: 4 HIGH                         ║
+║                                                                ║
+║  [✓] Step 3.5: Cross-service audit plan                      ║
+║      → Plan + review ledger persisted                         ║
+║                                                                ║
+║  [▸] Step 4: Per-service deep dive                           ║
+║      → auth-service (1/5): 2 CRITICAL findings               ║
+║      → api-gateway (2/5): in progress...                     ║
+║                                                                ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+### Polyglot Completion Summary
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                 POLYGLOT AUDIT COMPLETE                       ║
+╠═══════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  Target: /path/to/polyglot-monorepo                           ║
+║  Languages: Go, Python, TypeScript, Java                      ║
+║  Services audited: 5                                          ║
+║                                                                ║
+║  Findings by Service:                                         ║
+║  ├── auth-service (Go): 2 CRITICAL, 1 HIGH                   ║
+║  ├── api-gateway (Go): 1 HIGH, 2 MEDIUM                      ║
+║  ├── ml-pipeline (Python): 1 CRITICAL, 2 HIGH                ║
+║  ├── web-frontend (TypeScript): 3 MEDIUM                     ║
+║  └── data-processor (Java): 1 HIGH                           ║
+║                                                                ║
+║  Cross-Service Findings:                                      ║
+║  ├── Auth token not validated in ml-pipeline (CRITICAL)      ║
+║  ├── Error messages leak from Python to Gateway (MEDIUM)     ║
+║  └── No mTLS between gateway and auth-service (HIGH)         ║
+║                                                                ║
+║  Output Files:                                                 ║
+║  ├── .claude/scope-architecture-polyglot.md                  ║
+║  ├── .claude/threat-model-polyglot.md                        ║
+║  ├── .claude/audit-plan.md                                   ║
+║  ├── .claude/review-ledger.json                              ║
+║  ├── .claude/scope-auth.md                                   ║
+║  ├── .claude/scope-gateway.md                                ║
+║  ├── .claude/scope-ml.md                                     ║
+║  ├── .claude/scope-web.md                                    ║
+║  ├── .claude/scope-processor.md                              ║
+║  ├── .claude/audit-report-polyglot.md                        ║
+║  ├── .claude/findings.json          (machine-readable)        ║
+║  └── .claude/vuln-scout-state.json (orchestrator state) ║
+║                                                                ║
+╚═══════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## Prerequisites
+
+### Required
+- **repomix**: Codebase scoping and token counting
+  ```bash
+  npm install -g repomix
+  ```
+
+### Recommended
+- **Semgrep**: Fast pattern matching (auto-used if available)
+  ```bash
+  pip install semgrep
+  ```
+
+- **Joern**: CPG analysis for verification
+  ```bash
+  curl -L "https://github.com/joernio/joern/releases/latest/download/joern-install.sh" | bash
+  ```
+
+### For Solidity/Smart Contracts
+- **Slither**: Fast Solidity static analysis
+  ```bash
+  pip install slither-analyzer
+  ```
+
+---
+
+## Integration with CI/CD
+
+### GitHub Action Example
+
+```yaml
+name: Security Audit
+on: [pull_request]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          pip install semgrep
+          curl -L ".../joern-install.sh" | bash
+
+      - name: Run full audit
+        run: |
+          claude-code "/vuln-scout:full-audit . --quick"
+
+      - name: Check for critical findings
+        run: |
+          if grep -q "CRITICAL.*VERIFIED" .claude/audit-report.md; then
+            echo "Critical vulnerabilities found!"
+            exit 1
+          fi
+
+      - name: Upload report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: .claude/
+```
+
+---
+
+## Customization
+
+### Focus on Specific Vulnerability Types
+
+```
+/vuln-scout:full-audit . --focus sql-injection,command-injection
+```
+
+### Exclude Directories
+
+```
+/vuln-scout:full-audit . --exclude node_modules,vendor,test
+```
+
+### Set Severity Threshold
+
+```
+/vuln-scout:full-audit . --min-severity high
+```
+
+---
+
+## Examples
+
+### Audit a Go monorepo
+```bash
+/vuln-scout:full-audit ~/code/my-go-project
+# Auto-detects Go, uses directory-based compression
+# 1.68M tokens → 47k architecture scope (97% reduction)
+```
+
+### Audit a TypeScript project
+```bash
+/vuln-scout:full-audit ~/code/my-app
+# Auto-detects TS, uses Tree-sitter compression
+# ~80% token reduction
+```
+
+### Audit with more modules
+```bash
+/vuln-scout:full-audit --top 5
+# Audits top 5 riskiest modules instead of default 3
+```
+
+### Audit a polyglot monorepo (Go + Python + TypeScript)
+```bash
+/vuln-scout:full-audit ~/code/platform
+# Automatically detects mixed-language codebase
+# Scopes each service with language-appropriate compression
+# Generates cross-service threat model
+# Audits services in priority order (auth first, then APIs, then ML)
+```
+
+### Force single-language mode (skip polyglot detection)
+```bash
+/vuln-scout:full-audit ~/code/platform --language go
+# Forces Go-specific analysis only
+# Useful when you want to focus on just one language/service type
+```
+
+### Machine-readable JSON output (for orchestrators/CI)
+```bash
+/vuln-scout:full-audit . --json
+# Suppresses human-formatted progress boxes
+# Emits structured JSON to stdout on completion
+# Always writes .claude/findings.json regardless of this flag
+```
+
+### Non-interactive mode (for orchestrator agents)
+```bash
+/vuln-scout:full-audit . --no-interactive
+# Disables all AskUserQuestion calls - never stalls waiting for input
+# Uses sensible defaults for all ambiguous decisions
+# Combine with --json for fully headless operation:
+/vuln-scout:full-audit . --json --no-interactive
+```
+
+---
+
+## Notes
+
+- **Large codebases**: Automatically handled via architecture-first workflow
+- **Language detection**: Auto-detects Go, TS/JS, Python, Java, Rust, PHP, C#, Ruby, Solidity
+- **Polyglot support**: Automatically detects mixed-language monorepos, scopes each service appropriately
+- **Compression rates**: Go achieves 95-97%, TS/JS achieves ~80%, Python 85-90%
+- **Cross-service security**: Analyzes trust boundaries, auth propagation, protocol-specific threats
+- **Duration**: 2-5 minutes for single-language, 5-15 minutes for polyglot codebases
+- **Artifacts cached**: Re-run is faster if `.claude/` artifacts exist
+- Use `--quick` for faster iteration (skips threat modeling)
+- Use `--language` to force single-language mode and skip polyglot detection
+- All outputs saved to `.claude/` directory
+- Add `.claude/` to `.gitignore` if desired
+- `--suppressions` applies `.vuln-scout-ignore` after aggregation and before `--fail-on`
+- `--fail-on` returns exit code `2` only for unsuppressed `finding` entries at or above the threshold
+
+---
+
+## Agent Integration
+
+The full-audit pipeline can leverage specialized agents for deeper analysis:
+
+### Code Reviewer Agent
+
+For detailed vulnerability hunting in high-risk modules:
+
+```
+Use Task tool with:
+  subagent_type: "vuln-scout:code-reviewer"
+  prompt: |
+    Review this module for security vulnerabilities:
+    - Module: [module_path]
+    - Focus areas: [from threat model]
+    - Previous findings: [list any known issues]
+```
+
+### Local Tester Agent
+
+For dynamic testing guidance after vulnerabilities are found:
+
+```
+Use Task tool with:
+  subagent_type: "vuln-scout:local-tester"
+  prompt: |
+    Guide dynamic testing for:
+    - Finding: [vulnerability description]
+    - Location: [file:line]
+    - Application setup: [how to run locally]
+```
+
+### PoC Developer Agent
+
+**IMPORTANT**: PoC development should only occur after manual verification of the exploit chain. The audit report provides vulnerability building blocks, not ready-to-use exploits.
+
+```
+Use Task tool with:
+  subagent_type: "vuln-scout:poc-developer"
+  prompt: |
+    Develop PoC for:
+    - Vulnerability: [type and description]
+    - Target: [endpoint/function]
+    - Constraints: [environment limitations]
+    - Verified: [YES - describe how chain was verified]
+```
+
+### Patch Advisor Agent
+
+For remediation recommendations:
+
+```
+Use Task tool with:
+  subagent_type: "vuln-scout:patch-advisor"
+  prompt: |
+    Recommend fixes for:
+    - Finding: [vulnerability]
+    - Code context: [relevant code snippet]
+    - Framework: [language/framework in use]
+```
+
+### Attack Researcher Agent
+
+For autonomous exploration of novel attack vectors beyond pattern matching:
+
+```
+Use Task tool with:
+  subagent_type: "vuln-scout:attack-researcher"
+  prompt: |
+    Research attack vectors for:
+    - Threat model: [.claude/threat-model.md]
+    - Scan results: [.claude/findings.json]
+    - Focus: [specific component or attack surface]
+```
+
+The attack researcher hypothesizes novel attack vectors, tests them against the codebase, and iterates -- finding vulnerabilities that scanners can't.
+
+These 8 agents run autonomously and integrate with the main audit workflow.
+
+---
+
+## Exploit Chain Verification Checklist
+
+**IMPORTANT**: The audit report identifies vulnerability building blocks, not verified exploit chains. Before considering an exploit chain viable, verify each component:
+
+### SSRF-Based Attacks
+
+- [ ] Can the SSRF target external URLs? (Check `base_url` prefix restrictions)
+- [ ] Is the response returned to the attacker? (Direct vs blind SSRF)
+- [ ] Is there a proxy cache that could store the response?
+- [ ] What file extensions trigger caching? (Check nginx/proxy config)
+- [ ] Is DNS exfiltration possible? (Network restrictions)
+
+### Cache-Based Exfiltration
+
+- [ ] What paths are cached? (Check proxy config)
+- [ ] How is cache key constructed? (Extension, path, headers?)
+- [ ] Does the application serve dynamic content regardless of extension?
+- [ ] What is the cache TTL? (Time window for attack)
+- [ ] Are authenticated responses cacheable? (Check Vary header)
+
+### Cross-Layer Attacks
+
+- [ ] Does the application layer behavior align with proxy layer assumptions?
+- [ ] Are there path normalization differences between layers?
+- [ ] Do error responses get cached differently than success responses?
+
+### General Verification
+
+- [ ] Run locally with Docker/test environment first
+- [ ] Confirm each step of the chain independently
+- [ ] Verify network restrictions don't block the attack
+- [ ] Check for rate limiting or WAF that could block exploitation
+
+**Note**: The audit report should describe vulnerability connections without providing ready-to-use exploit code. Analysts should verify chains before developing PoCs.
+
+---
+
+## ⚠️ MANDATORY FINAL STEP: JSON OUTPUT ⚠️
+
+**CRITICAL**: After completing the audit and generating `.claude/audit-report.md`, you MUST ALSO generate a machine-readable JSON findings file. This is REQUIRED for integration with security dashboards and CI/CD pipelines.
+
+### Required Action
+
+Use the Write tool to create `.claude/findings.json` following the schema defined in Step 7 above. The same field conventions apply:
+
+- **schema_version**: `"1.2.0"` for new artifacts
+- **stable_key**: required and stable across runs
+- **kind**: `"finding"` or `"hotspot"`
+- **source_tool**: required on every entry
+- **evidence**: required on every entry
+- **trust_metadata**: required on every v1.2.0 entry; mark provenance, exploitability status, false-positive risk, and confidence reason without overstating uncertainty
+- **verdict**: `"verified"`, `"false_positive"`, `"needs_review"`, `"unverified"`, `"na_cpg"`
+- **confidence**: `"verified"`, `"high"`, `"medium"`, `"low"`
+- only unsuppressed `finding` entries affect severity totals and `--fail-on`
+
+### Step 7b: Machine-Readable Review Ledger (MANDATORY)
+
+Alongside `.claude/findings.json`, write `.claude/review-ledger.json` so orchestration review rounds persist across sessions:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "generated_at": "<ISO-8601>",
+  "subjects": [
+    {
+      "subject_type": "audit-plan",
+      "subject_id": "audit-plan:default",
+      "round": 1,
+      "reviewers": [
+        {
+          "name": "coverage-reviewer",
+          "angle": "missed attack surfaces",
+          "summary": "Requested stronger coverage of unauthenticated entry points."
+        }
+      ],
+      "status": "CHANGES_REQUESTED",
+      "notes": [
+        "Round 1 updated the attack surface list."
+      ]
+    }
+  ]
+}
+```
+
+Review subject types are:
+- `audit-plan`
+- `threat-model`
+- `module-findings`
+- `finding-verification`
+
+Use `APPROVED`, `CHANGES_REQUESTED`, and `UNRESOLVED` exactly. When a subject is unresolved after the final round, add `[REVIEWER NOTE: unresolved]` to `notes`.
+
+### Step 7c: Machine-Readable State Update (MANDATORY)
+
+Alongside `.claude/findings.json`, write `.claude/vuln-scout-state.json` so orchestrators can query audit progress without parsing markdown:
+
+```json
+{
+  "target": "<project-path>",
+  "language": "<primary-language>",
+  "is_polyglot": false,
+  "current_phase": "complete",
+  "phase_number": 7,
+  "started_at": "<ISO-8601>",
+  "last_updated": "<ISO-8601>",
+  "completed_at": "<ISO-8601>",
+  "strategy": "direct|architecture-first",
+  "summary": {
+    "total": 0,
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0,
+    "verified": 0,
+    "false_positive": 0
+  },
+  "artifacts": {
+    "scope_architecture": ".claude/scope-architecture.md",
+    "threat_model": ".claude/threat-model.md",
+    "audit_plan": ".claude/audit-plan.md",
+    "audit_report": ".claude/audit-report.md",
+    "findings_json": ".claude/findings.json",
+    "review_ledger": ".claude/review-ledger.json",
+    "state_json": ".claude/vuln-scout-state.json"
+  },
+  "review_state": {
+    "audit_plan": "APPROVED|CHANGES_REQUESTED|UNRESOLVED|pending",
+    "threat_model": "APPROVED|CHANGES_REQUESTED|UNRESOLVED|pending",
+    "findings": "APPROVED|CHANGES_REQUESTED|UNRESOLVED|pending"
+  },
+  "phases_completed": ["size-check", "framework-scan", "threat-model", "audit-plan", "threat-review", "module-identification", "deep-dive", "finding-review", "chain-analysis", "report"],
+  "next_steps": [],
+  "modules_audited": []
+}
+```
+
+This schema matches the superset defined in `hooks/session-init.md`. All fields (`phase_number`, `last_updated`, `next_steps`, `summary.verified`, `summary.false_positive`) must be present in both locations.
+
+Write this with the Write tool immediately after generating `.claude/findings.json` and `.claude/review-ledger.json`.
+
+### Step 7d: JSON stdout (--json flag only)
+
+If `--json` flag was passed, emit the contents of `.claude/findings.json` to stdout as the final action. No other text should follow.
+
+```bash
+cat .claude/findings.json
+```
+
+### Checklist Before Completing Audit
+
+- [ ] Generated `.claude/audit-report.md` (markdown report)
+- [ ] Generated `.claude/findings.json` (JSON for automation)
+- [ ] Generated `.claude/review-ledger.json` (machine-readable review history)
+- [ ] Generated `.claude/vuln-scout-state.json` (machine-readable state)
+- [ ] Verified JSON is valid: `python3 -c "import json; json.load(open('.claude/findings.json'))"`
+- [ ] If `--json` flag: emitted `.claude/findings.json` contents to stdout
+
+**DO NOT mark the audit as complete until ALL files are generated.**

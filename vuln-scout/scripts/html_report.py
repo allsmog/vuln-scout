@@ -1,0 +1,1404 @@
+#!/usr/bin/env python3
+"""Generate a self-contained interactive HTML report from a VulnScout findings artifact.
+
+The output is a single HTML file with zero external dependencies -- all CSS, JS,
+and SVG graphics are inlined.  Designed as the flagship visual output for VulnScout.
+"""
+from __future__ import annotations
+
+import html
+import math
+import re
+from typing import Any
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+SEVERITY_COLORS = {
+    "critical": "#dc2626",
+    "high": "#ea580c",
+    "medium": "#ca8a04",
+    "low": "#2563eb",
+    "info": "#6b7280",
+}
+
+SEVERITY_ORDER = ["critical", "high", "medium", "low", "info"]
+
+VERDICT_LABELS = {
+    "verified": ("Verified by Joern CPG", "#16a34a"),
+    "needs_review": ("Needs Review", "#ca8a04"),
+    "false_positive": ("False Positive", "#6b7280"),
+    "unverified": ("Unverified", "#9ca3af"),
+    "na_cpg": ("CPG N/A", "#9ca3af"),
+}
+
+ROLE_COLORS = {
+    "source": "#16a34a",
+    "hop": "#2563eb",
+    "sink": "#dc2626",
+    "sanitizer": "#8b5cf6",
+    "control": "#6b7280",
+}
+
+TRUST_COLORS = {
+    "provenance": {
+        "deterministic_tool": "#0e7490",
+        "llm_analysis": "#7c3aed",
+        "dynamic_verified": "#16a34a",
+        "human_review": "#0891b2",
+        "mixed": "#475569",
+    },
+    "fp_risk": {
+        "low": "#16a34a",
+        "medium": "#ca8a04",
+        "high": "#dc2626",
+        "unknown": "#6b7280",
+    },
+    "exploitability": {
+        "confirmed": "#dc2626",
+        "plausible": "#ea580c",
+        "blocked_by_control": "#16a34a",
+        "requires_auth": "#0e7490",
+        "unreachable": "#6b7280",
+        "unknown": "#9ca3af",
+    },
+}
+
+REMEDIATION_DEFAULTS = {
+    "sql-injection": "Use parameterized queries or prepared statements. Never interpolate user input into SQL strings.",
+    "command-injection": "Avoid shell execution. Use language-native libraries. If shell is necessary, use strict allowlisting.",
+    "xss": "Apply context-appropriate output encoding. Use framework auto-escaping. Deploy CSP headers.",
+    "ssrf": "Validate and allowlist destination URLs. Block internal/metadata IPs. Use a proxy with egress filtering.",
+    "ssti": "Never pass user input to template rendering functions. Use sandboxed template engines.",
+    "path-traversal": "Resolve paths with realpath() and validate they remain within the allowed directory prefix.",
+    "deserialization": "Never deserialize untrusted input. Use safe formats like JSON. If unavoidable, use strict type validation.",
+    "hardcoded-secret": "Move secrets to environment variables or a secrets manager. Rotate compromised credentials immediately.",
+}
+
+# Syntax-highlighting keyword sets per language family
+_KW = {
+    "python": r"\b(def|class|import|from|return|if|elif|else|for|while|with|as|try|except|finally|raise|yield|async|await|lambda|pass|break|continue|and|or|not|in|is|True|False|None)\b",
+    "javascript": r"\b(function|const|let|var|return|if|else|for|while|do|switch|case|break|continue|class|new|this|import|export|default|async|await|try|catch|finally|throw|typeof|instanceof|true|false|null|undefined)\b",
+    "go": r"\b(func|package|import|return|if|else|for|range|switch|case|break|continue|type|struct|interface|map|chan|go|defer|select|var|const|true|false|nil)\b",
+    "java": r"\b(public|private|protected|static|final|class|interface|extends|implements|return|if|else|for|while|do|switch|case|break|continue|new|this|super|try|catch|finally|throw|throws|import|package|void|int|boolean|String|true|false|null)\b",
+    "php": r"\b(function|class|public|private|protected|static|return|if|else|elseif|for|foreach|while|do|switch|case|break|continue|new|echo|print|try|catch|finally|throw|use|namespace|true|false|null)\b",
+    "ruby": r"\b(def|class|module|return|if|elsif|else|unless|for|while|until|do|end|begin|rescue|ensure|raise|yield|require|include|attr_accessor|true|false|nil|self)\b",
+    "rust": r"\b(fn|let|mut|const|struct|enum|impl|trait|pub|use|mod|return|if|else|for|while|loop|match|break|continue|async|await|move|self|super|true|false|None|Some|Ok|Err)\b",
+    "solidity": r"\b(pragma|contract|function|modifier|event|mapping|address|uint256|uint|int|bool|string|bytes|public|private|internal|external|view|pure|payable|returns|require|emit|revert|if|else|for|while|true|false)\b",
+    "csharp": r"\b(class|interface|struct|enum|namespace|using|public|private|protected|internal|static|void|int|string|bool|var|return|if|else|for|foreach|while|do|switch|case|break|continue|new|this|base|try|catch|finally|throw|async|await|true|false|null)\b",
+}
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+def generate(artifact: dict[str, Any], max_findings: int = 200) -> str:
+    """Return a self-contained HTML string from a VulnScout findings artifact."""
+    summary = artifact.get("summary", {})
+    findings_all = artifact.get("findings", [])
+    chains = artifact.get("chains", [])
+    coverage = artifact.get("coverage", {})
+
+    # Separate findings and hotspots
+    findings = [f for f in findings_all if f.get("kind") == "finding" and not f.get("suppressed")]
+    hotspots = [f for f in findings_all if f.get("kind") == "hotspot" and not f.get("suppressed")]
+
+    truncated = 0
+    if len(findings) > max_findings:
+        truncated = len(findings) - max_findings
+        findings = findings[:max_findings]
+
+    score = _security_score(summary)
+
+    # Build findings lookup
+    findings_by_id = {f["id"]: f for f in findings_all if "id" in f}
+
+    # Count verdicts
+    verified_count = sum(1 for f in findings if f.get("verdict") == "verified")
+    needs_review_count = sum(1 for f in findings if f.get("verdict") == "needs_review")
+
+    parts = [
+        _html_head(),
+        _header_bar(artifact, summary, score),
+        '<main class="container">',
+        _summary_section(summary, score, verified_count, needs_review_count, len(chains)),
+        _tool_status_section(artifact.get("tool_status", {})),
+        _tool_maturity_section(artifact),
+        _chain_graph_section(chains, findings_by_id),
+        _trust_legend_section(),
+        _findings_table(findings, truncated),
+        _hotspots_section(hotspots),
+        _coverage_section(coverage, artifact),
+        _next_actions_section(artifact),
+        '</main>',
+        _footer(artifact),
+        _inline_script(findings),
+        '</body></html>',
+    ]
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Score calculation
+# ---------------------------------------------------------------------------
+
+def _security_score(summary: dict[str, Any]) -> int:
+    penalty = (
+        summary.get("critical", 0) * 25
+        + summary.get("high", 0) * 10
+        + summary.get("medium", 0) * 3
+        + summary.get("low", 0) * 1
+    )
+    return max(0, 100 - penalty)
+
+
+# ---------------------------------------------------------------------------
+# HTML head + CSS
+# ---------------------------------------------------------------------------
+
+def _html_head() -> str:
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VulnScout Security Report</title>
+<style>
+{_css()}
+</style>
+</head>
+<body>"""
+
+
+def _css() -> str:
+    return """\
+:root {
+  --bg: #fff;
+  --bg-card: #f9fafb;
+  --bg-card-hover: #f3f4f6;
+  --bg-surface: #f3f4f6;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --text-bright: #111827;
+  --border: #e5e7eb;
+  --accent: #2563eb;
+  --critical: #dc2626;
+  --high: #ea580c;
+  --medium: #d97706;
+  --low: #2563eb;
+  --info: #6b7280;
+  --verified: #16a34a;
+  --needs-review: #d97706;
+  --radius: 4px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  font-size: 14px;
+}
+.container { max-width: 960px; margin: 0 auto; padding: 0 20px 40px; }
+
+/* Header bar */
+.header-bar {
+  background: #111827;
+  padding: 16px 0;
+  border-bottom: 3px solid var(--accent);
+}
+.header-inner {
+  max-width: 960px; margin: 0 auto; padding: 0 20px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand-icon {
+  width: 28px; height: 28px; border-radius: 4px;
+  background: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; color: #fff;
+}
+.brand h1 { font-size: 16px; font-weight: 600; color: #fff; }
+.meta-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.pill {
+  color: #9ca3af; padding: 2px 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pill strong { color: #d1d5db; }
+.pill + .pill::before { content: '|'; margin-right: 6px; color: #4b5563; }
+.score-badge {
+  display: flex; align-items: baseline; gap: 4px;
+  color: #fff; font-size: 13px;
+}
+.score-value { font-size: 20px; font-weight: 700; }
+.score-label { font-size: 11px; color: #9ca3af; }
+
+/* Section headers */
+.section { margin-top: 32px; }
+.section-title {
+  font-size: 15px; font-weight: 600; color: var(--text-bright);
+  margin-bottom: 12px; padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+.section-title::before { display: none; }
+
+/* Stat cards */
+.stats-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px; flex: 1; min-width: 100px; text-align: center;
+}
+.stat-card:hover { background: var(--bg-card-hover); }
+.stat-number { font-size: 22px; font-weight: 700; line-height: 1.2; }
+.stat-label { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* Donut container */
+.summary-grid { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.donut-wrap { flex-shrink: 0; }
+
+/* Findings table */
+.findings-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+table.findings { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.findings thead th {
+  background: var(--bg-surface); color: var(--text-muted); text-align: left;
+  padding: 8px 12px; font-weight: 600; font-size: 11px; text-transform: uppercase;
+  cursor: pointer; user-select: none;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+table.findings thead th:hover { color: var(--text-bright); }
+table.findings thead th .sort-arrow { margin-left: 4px; opacity: 0.4; }
+table.findings thead th.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+table.findings tbody tr {
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+}
+table.findings tbody tr:hover { background: var(--bg-card-hover); }
+table.findings td { padding: 8px 12px; vertical-align: middle; }
+
+/* Severity badges */
+.sev-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  color: #fff;
+}
+.sev-critical { background: var(--critical); }
+.sev-high { background: var(--high); }
+.sev-medium { background: var(--medium); color: #fff; }
+.sev-low { background: var(--low); }
+.sev-info { background: var(--info); }
+
+/* Verdict badges */
+.verdict-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  font-size: 11px; font-weight: 500; border: 1px solid;
+}
+.trust-cell { display: flex; gap: 4px; flex-wrap: wrap; min-width: 150px; }
+.trust-chip {
+  display: inline-block; padding: 1px 5px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; color: #fff; line-height: 1.5;
+}
+
+/* Finding detail card */
+.finding-detail {
+  display: none; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); margin: 4px 0 12px; padding: 16px;
+}
+.finding-detail.open { display: block; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 768px) { .detail-grid { grid-template-columns: 1fr; } }
+.detail-section h4 {
+  font-size: 11px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 6px; font-weight: 600;
+}
+
+/* Evidence timeline */
+.evidence-timeline { position: relative; padding-left: 20px; }
+.evidence-timeline::before {
+  content: ''; position: absolute; left: 5px; top: 4px; bottom: 4px;
+  width: 1px; background: var(--border);
+}
+.ev-item { position: relative; margin-bottom: 10px; }
+.ev-dot {
+  position: absolute; left: -18px; top: 5px; width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.ev-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+.ev-path { font-size: 11px; color: var(--text-muted); }
+
+/* Code blocks */
+.code-block {
+  background: #f6f8fa; border: 1px solid var(--border); border-radius: 3px;
+  padding: 8px 12px; font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 12px; line-height: 1.5; overflow-x: auto;
+  color: #24292f; white-space: pre-wrap; word-break: break-word;
+}
+.code-block .kw { color: #cf222e; font-weight: 600; }
+.code-block .str { color: #0a3069; }
+.code-block .cmt { color: #6e7781; font-style: italic; }
+.code-block .num { color: #0550ae; }
+
+/* CVSS bar */
+.cvss-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; background: var(--border); }
+.cvss-segment { height: 100%; }
+
+/* Remediation panel */
+.remediation-panel {
+  background: #eff6ff; border: 1px solid #bfdbfe;
+  border-radius: 3px; padding: 10px 12px; margin-top: 10px;
+  font-size: 13px;
+}
+.remediation-panel h4 { color: var(--accent); margin-bottom: 2px; font-size: 12px; }
+
+/* CWE link */
+a.cwe-link { color: var(--accent); text-decoration: underline; font-size: 12px; }
+a.cwe-link:hover { color: var(--text-bright); }
+
+/* Chain graph */
+.chain-graph-wrap {
+  overflow-x: auto; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.chain-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.chain-name { font-weight: 600; font-size: 14px; color: var(--text-bright); }
+.chain-impact { font-size: 12px; color: var(--text-muted); }
+
+/* Hotspots table */
+table.hotspots { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.hotspots thead th {
+  background: var(--bg-surface); color: var(--text-muted); text-align: left;
+  padding: 6px 10px; font-size: 11px; text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+}
+table.hotspots td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+
+/* Coverage panel */
+.coverage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.cov-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px;
+}
+.cov-card h4 { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
+.cov-card p { font-size: 13px; color: var(--text); }
+
+/* Footer */
+.footer {
+  text-align: center; padding: 24px 20px; color: var(--text-muted);
+  font-size: 11px; border-top: 1px solid var(--border); margin-top: 40px;
+}
+.footer a { color: var(--accent); text-decoration: none; }
+.footer a:hover { text-decoration: underline; }
+
+/* Truncation notice */
+.truncation-notice {
+  background: #fff7ed; border: 1px solid #fed7aa;
+  border-radius: 3px; padding: 8px 12px; text-align: center;
+  color: #9a3412; font-size: 12px; margin-top: 8px;
+}
+
+@media print {
+  .header-bar { position: static; background: #fff; border-bottom: 2px solid #000; }
+  .brand-icon { background: #000; }
+  .brand h1, .pill, .pill strong, .score-value { color: #000; }
+  body { font-size: 11px; }
+}
+"""
+
+
+# ---------------------------------------------------------------------------
+# Header bar
+# ---------------------------------------------------------------------------
+
+def _header_bar(artifact: dict[str, Any], summary: dict[str, Any], score: int) -> str:
+    project = html.escape(str(artifact.get("project_path", "unknown")))
+    date = html.escape(str(artifact.get("completed_at", "unknown"))[:19])
+    scan_id = html.escape(str(artifact.get("scan_id", "unknown"))[:8])
+    tool = html.escape(str(artifact.get("source_tool", "unknown")))
+
+    if score >= 80:
+        score_color = "#16a34a"
+    elif score >= 50:
+        score_color = "#ca8a04"
+    else:
+        score_color = "#dc2626"
+
+    return f"""<div class="header-bar">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-icon">VS</div>
+      <div>
+        <h1>VulnScout</h1>
+      </div>
+    </div>
+    <div class="meta-pills">
+      <span class="pill"><strong>Project:</strong> {project}</span>
+      <span class="pill"><strong>Scan:</strong> {scan_id}</span>
+      <span class="pill"><strong>Date:</strong> {date}</span>
+      <span class="pill"><strong>Tools:</strong> {tool}</span>
+    </div>
+    <div class="score-badge" style="border-color: {score_color};">
+      <span class="score-value" style="color: {score_color};">{score}</span>
+      <span class="score-label">Score</span>
+    </div>
+  </div>
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# Summary section with donut + stat cards
+# ---------------------------------------------------------------------------
+
+def _summary_section(summary: dict[str, Any], score: int, verified: int,
+                     needs_review: int, chain_count: int) -> str:
+    total = summary.get("total_findings", 0)
+    donut = _donut_svg(summary)
+
+    return f"""<div class="section">
+  <div class="section-title">Security Overview</div>
+  <div class="summary-grid">
+    <div class="donut-wrap">{donut}</div>
+    <div style="flex: 1;">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--accent);">{total}</div>
+          <div class="stat-label">Total Findings</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--verified);">{verified}</div>
+          <div class="stat-label">Verified</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--needs-review);">{needs_review}</div>
+          <div class="stat-label">Needs Review</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--critical);">{chain_count}</div>
+          <div class="stat-label">Attack Chains</div>
+        </div>
+      </div>
+      <div class="stats-row">
+        {_severity_stat_cards(summary)}
+      </div>
+    </div>
+  </div>
+</div>"""
+
+
+def _severity_stat_cards(summary: dict[str, Any]) -> str:
+    cards = []
+    for sev in SEVERITY_ORDER:
+        count = summary.get(sev, 0)
+        color = SEVERITY_COLORS[sev]
+        cards.append(
+            f'<div class="stat-card">'
+            f'<div class="stat-number" style="color: {color};">{count}</div>'
+            f'<div class="stat-label">{sev.title()}</div>'
+            f'</div>'
+        )
+    return "\n".join(cards)
+
+
+def _tool_status_section(status: dict[str, Any]) -> str:
+    requested = status.get("requested", [])
+    if not requested:
+        return ""
+
+    succeeded = set(status.get("succeeded", []))
+    failed = set(status.get("failed", []))
+    unavailable = set(status.get("unavailable", []))
+
+    cards = []
+    for tool in requested:
+        if tool in failed:
+            value = "failed"
+            color = "var(--high)"
+        elif tool in unavailable:
+            value = "unavailable"
+            color = "var(--text-muted)"
+        elif tool in succeeded or any(name.startswith(f"{tool}-") for name in succeeded):
+            value = "succeeded"
+            color = "var(--verified)"
+        else:
+            value = "not run"
+            color = "var(--text-muted)"
+        cards.append(
+            '<div class="cov-card">'
+            f'<h4>{html.escape(str(tool))}</h4>'
+            f'<p style="color:{color};">{html.escape(value)}</p>'
+            '</div>'
+        )
+
+    return (
+        '<div class="section">\n'
+        '  <div class="section-title">Tool Status</div>\n'
+        '  <div class="coverage-grid">\n'
+        f'    {"".join(cards)}\n'
+        '  </div>\n'
+        '</div>'
+    )
+
+
+def _tool_maturity_section(artifact: dict[str, Any]) -> str:
+    maturity = artifact.get("maturity", {})
+    if not maturity:
+        return ""
+
+    profile = artifact.get("scan_profile")
+    profile_maturity = maturity.get("profiles", {}).get(profile)
+    tools = artifact.get("tool_status", {}).get("requested") or artifact.get("coverage", {}).get("tools_used") or []
+    if not tools:
+        tools = sorted({f.get("source_tool") for f in artifact.get("findings", []) if f.get("source_tool")})
+    analyzers = maturity.get("analyzers", {})
+    commands = maturity.get("commands", {})
+
+    cards = []
+    if profile and profile_maturity:
+        cards.append(
+            '<div class="cov-card">'
+            '<h4>Profile</h4>'
+            f'<p>{html.escape(str(profile))}: {html.escape(str(profile_maturity))}</p>'
+            '</div>'
+        )
+    for tool in tools:
+        cards.append(
+            '<div class="cov-card">'
+            f'<h4>{html.escape(str(tool))}</h4>'
+            f'<p>{html.escape(str(analyzers.get(tool) or commands.get(tool, "unknown")))}</p>'
+            '</div>'
+        )
+    if not cards:
+        return ""
+
+    return (
+        '<div class="section">\n'
+        '  <div class="section-title">Tool Maturity</div>\n'
+        '  <div class="coverage-grid">\n'
+        f'    {"".join(cards)}\n'
+        '  </div>\n'
+        '</div>'
+    )
+
+
+def _trust_values(finding: dict[str, Any]) -> tuple[str, str, str, str]:
+    trust = finding.get("trust_metadata") or {}
+    provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
+    fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))
+    exploitability = str(trust.get("exploitability_status", "unknown"))
+    reason = str(trust.get("confidence_reason") or (trust.get("false_positive_risk") or {}).get("reason") or "")
+    return provenance, fp_risk, exploitability, reason
+
+
+def _trust_chips(finding: dict[str, Any]) -> str:
+    provenance, fp_risk, exploitability, reason = _trust_values(finding)
+    title = html.escape(reason, quote=True)
+    chips = [
+        ("T", provenance, TRUST_COLORS["provenance"].get(provenance, "#6b7280")),
+        ("FP", fp_risk, TRUST_COLORS["fp_risk"].get(fp_risk, "#6b7280")),
+        ("X", exploitability, TRUST_COLORS["exploitability"].get(exploitability, "#9ca3af")),
+    ]
+    return '<span class="trust-cell">' + "".join(
+        f'<span class="trust-chip" title="{title}" style="background:{color};">'
+        f'{html.escape(label)}:{html.escape(value)}</span>'
+        for label, value, color in chips
+    ) + '</span>'
+
+
+def _trust_legend_section() -> str:
+    return """<div class="section">
+  <div class="section-title">Trust Legend</div>
+  <div class="coverage-grid">
+    <div class="cov-card"><h4>Trust</h4><p>Provenance from deterministic tools, LLM analysis, dynamic verification, human review, or mixed signals.</p></div>
+    <div class="cov-card"><h4>FP Risk</h4><p>False-positive likelihood inferred from verification, suppressions, semantic checks, and controls.</p></div>
+    <div class="cov-card"><h4>Exploitability</h4><p>Confirmed, plausible, blocked by control, requires auth, unreachable, or unknown.</p></div>
+  </div>
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# SVG donut chart
+# ---------------------------------------------------------------------------
+
+def _donut_svg(summary: dict[str, Any]) -> str:
+    """Pure SVG donut chart using math.sin/math.cos arc calculations."""
+    size = 220
+    cx, cy = size / 2, size / 2
+    outer_r = 90
+    inner_r = 60
+    total = sum(summary.get(s, 0) for s in SEVERITY_ORDER)
+
+    if total == 0:
+        # Empty state
+        return (
+            f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg">'
+            f'<circle cx="{cx}" cy="{cy}" r="{outer_r}" fill="none" stroke="#334155" stroke-width="30"/>'
+            f'<text x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="central" '
+            f'font-size="28" font-weight="800" fill="#e2e8f0">0</text>'
+            f'<text x="{cx}" y="{cy + 20}" text-anchor="middle" font-size="11" fill="#94a3b8">findings</text>'
+            f'</svg>'
+        )
+
+    paths = []
+    angle_offset = -math.pi / 2  # Start from top
+
+    for sev in SEVERITY_ORDER:
+        count = summary.get(sev, 0)
+        if count == 0:
+            continue
+
+        fraction = count / total
+        sweep = fraction * 2 * math.pi
+
+        # Avoid full-circle edge case: use two arcs
+        if fraction > 0.9999:
+            # Nearly full circle -- draw two half-arcs
+            paths.append(_arc_path(cx, cy, outer_r, inner_r, angle_offset,
+                                   angle_offset + math.pi, SEVERITY_COLORS[sev]))
+            paths.append(_arc_path(cx, cy, outer_r, inner_r, angle_offset + math.pi,
+                                   angle_offset + 2 * math.pi - 0.001, SEVERITY_COLORS[sev]))
+        else:
+            end_angle = angle_offset + sweep
+            paths.append(_arc_path(cx, cy, outer_r, inner_r, angle_offset, end_angle,
+                                   SEVERITY_COLORS[sev]))
+
+        angle_offset += sweep
+
+    paths_str = "\n".join(paths)
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" '
+        f'xmlns="http://www.w3.org/2000/svg">\n'
+        f'{paths_str}\n'
+        f'<text x="{cx}" y="{cy - 6}" text-anchor="middle" dominant-baseline="central" '
+        f'font-size="32" font-weight="800" fill="#f8fafc">{total}</text>\n'
+        f'<text x="{cx}" y="{cy + 18}" text-anchor="middle" font-size="11" '
+        f'font-weight="500" fill="#94a3b8">findings</text>\n'
+        f'</svg>'
+    )
+
+
+def _arc_path(cx: float, cy: float, outer_r: float, inner_r: float,
+              start_angle: float, end_angle: float, color: str) -> str:
+    """Draw one donut arc segment as an SVG path."""
+    large_arc = 1 if (end_angle - start_angle) > math.pi else 0
+
+    # Outer arc (clockwise)
+    ox1 = cx + outer_r * math.cos(start_angle)
+    oy1 = cy + outer_r * math.sin(start_angle)
+    ox2 = cx + outer_r * math.cos(end_angle)
+    oy2 = cy + outer_r * math.sin(end_angle)
+
+    # Inner arc (counter-clockwise, so swap start/end)
+    ix1 = cx + inner_r * math.cos(end_angle)
+    iy1 = cy + inner_r * math.sin(end_angle)
+    ix2 = cx + inner_r * math.cos(start_angle)
+    iy2 = cy + inner_r * math.sin(start_angle)
+
+    d = (
+        f"M {ox1:.2f} {oy1:.2f} "
+        f"A {outer_r} {outer_r} 0 {large_arc} 1 {ox2:.2f} {oy2:.2f} "
+        f"L {ix1:.2f} {iy1:.2f} "
+        f"A {inner_r} {inner_r} 0 {large_arc} 0 {ix2:.2f} {iy2:.2f} "
+        f"Z"
+    )
+    return f'<path d="{d}" fill="{color}" opacity="0.9"/>'
+
+
+# ---------------------------------------------------------------------------
+# Attack chain graph
+# ---------------------------------------------------------------------------
+
+def _chain_graph_section(chains: list[dict[str, Any]],
+                         findings_by_id: dict[str, dict[str, Any]]) -> str:
+    if not chains:
+        return ""
+
+    graphs = []
+    for chain in chains:
+        graphs.append(_single_chain_graph(chain, findings_by_id))
+
+    return (
+        '<div class="section">\n'
+        '  <div class="section-title">Attack Chains</div>\n'
+        + "\n".join(graphs)
+        + '\n</div>'
+    )
+
+
+def _single_chain_graph(chain: dict[str, Any], findings_by_id: dict[str, dict[str, Any]]) -> str:
+    chain_name = html.escape(chain.get("name", "Unnamed Chain"))
+    impact = html.escape(chain.get("impact", ""))
+    flow_desc = html.escape(chain.get("flow_description", ""))
+
+    finding_ids = chain.get("finding_ids", [])
+    nodes = []
+    for fid in finding_ids:
+        f = findings_by_id.get(fid, {})
+        nodes.append({
+            "id": fid,
+            "title": f.get("title", fid),
+            "severity": f.get("severity", "info"),
+            "file": f.get("file", ""),
+            "chain_role": f.get("chain_role", ""),
+        })
+
+    svg = _chain_graph_svg(nodes)
+
+    impact_html = f'<span class="chain-impact">{impact}</span>' if impact else ""
+    flow_html = (
+        f'<div style="font-size:12px;color:#94a3b8;margin-bottom:12px;">{flow_desc}</div>'
+        if flow_desc else ""
+    )
+
+    return (
+        f'<div class="chain-graph-wrap" style="margin-bottom:16px;">\n'
+        f'  <div class="chain-title-row">\n'
+        f'    <span class="chain-name">{chain_name}</span>\n'
+        f'    {impact_html}\n'
+        f'  </div>\n'
+        f'  {flow_html}\n'
+        f'  {svg}\n'
+        f'</div>'
+    )
+
+
+def _chain_graph_svg(nodes: list[dict[str, Any]]) -> str:
+    """Generate inline SVG for a left-to-right attack chain graph."""
+    if not nodes:
+        return ""
+
+    node_w = 180
+    node_h = 56
+    gap_x = 60
+    pad_x = 20
+    pad_y = 20
+    arrow_len = gap_x
+
+    total_w = pad_x * 2 + len(nodes) * node_w + (len(nodes) - 1) * gap_x
+    total_h = pad_y * 2 + node_h + 30  # extra for role labels
+
+    parts = [
+        f'<svg width="{total_w}" height="{total_h}" viewBox="0 0 {total_w} {total_h}" '
+        f'xmlns="http://www.w3.org/2000/svg" style="display:block;">'
+    ]
+
+    # Arrowhead marker
+    parts.append(
+        '<defs><marker id="arrowhead" markerWidth="8" markerHeight="6" '
+        'refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" '
+        'fill="#94a3b8"/></marker></defs>'
+    )
+
+    for i, node in enumerate(nodes):
+        x = pad_x + i * (node_w + gap_x)
+        y = pad_y
+        sev_color = SEVERITY_COLORS.get(node["severity"], "#6b7280")
+        title_esc = html.escape(node["title"])[:28]
+        file_esc = html.escape(node.get("file", ""))
+        if len(file_esc) > 25:
+            file_esc = "..." + file_esc[-22:]
+        fid = html.escape(node["id"])
+        role = node.get("chain_role", "")
+        role_label = role.title() if role else ""
+
+        # Node rectangle
+        parts.append(
+            f'<g class="chain-node" data-finding-id="{fid}" style="cursor:pointer;" '
+            f'onclick="scrollToFinding(\'{fid}\')">'
+            f'<rect x="{x}" y="{y}" width="{node_w}" height="{node_h}" rx="8" ry="8" '
+            f'fill="#1e293b" stroke="{sev_color}" stroke-width="2"/>'
+            f'<text x="{x + node_w / 2}" y="{y + 22}" text-anchor="middle" '
+            f'font-size="12" font-weight="700" fill="#f8fafc">{title_esc}</text>'
+            f'<text x="{x + node_w / 2}" y="{y + 38}" text-anchor="middle" '
+            f'font-size="10" fill="#94a3b8">{file_esc}</text>'
+            f'</g>'
+        )
+
+        # Role label below node
+        if role_label:
+            parts.append(
+                f'<text x="{x + node_w / 2}" y="{y + node_h + 16}" text-anchor="middle" '
+                f'font-size="10" font-weight="600" fill="{sev_color}">{role_label}</text>'
+            )
+
+        # Arrow to next node
+        if i < len(nodes) - 1:
+            ax1 = x + node_w
+            ax2 = x + node_w + arrow_len
+            ay = y + node_h / 2
+            parts.append(
+                f'<line x1="{ax1}" y1="{ay}" x2="{ax2}" y2="{ay}" '
+                f'stroke="#94a3b8" stroke-width="2" marker-end="url(#arrowhead)"/>'
+            )
+
+    parts.append('</svg>')
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Findings table
+# ---------------------------------------------------------------------------
+
+def _findings_table(findings: list[dict[str, Any]], truncated: int) -> str:
+    if not findings:
+        return (
+            '<div class="section">\n'
+            '  <div class="section-title">Findings</div>\n'
+            '  <p style="color:var(--text-muted);">No findings detected. Your code looks clean!</p>\n'
+            '</div>'
+        )
+
+    rows = []
+    for f in findings:
+        fid = html.escape(f.get("id", ""))
+        sev = f.get("severity", "info")
+        sev_esc = html.escape(sev)
+        title = html.escape(f.get("title", "Unknown"))
+        file_line = html.escape(f"{f.get('file', '?')}:{f.get('line', '?')}")
+        verdict = f.get("verdict", "unverified")
+        verdict_label, verdict_color = VERDICT_LABELS.get(verdict, ("Unknown", "#6b7280"))
+        cvss = f.get("cvss_score")
+        cvss_str = f"{cvss:.1f}" if cvss is not None else "-"
+        trust_html = _trust_chips(f)
+        source_tool = html.escape(f.get("source_tool", "-"))
+
+        row = (
+            f'<tr data-finding-id="{fid}" data-severity="{sev_esc}" '
+            f'data-cvss="{cvss if cvss is not None else -1}" onclick="toggleDetail(\'{fid}\')">'
+            f'<td><span class="sev-badge sev-{sev_esc}">{sev_esc}</span></td>'
+            f'<td>{title}</td>'
+            f'<td style="font-family:monospace;font-size:12px;">{file_line}</td>'
+            f'<td><span class="verdict-badge" style="color:{verdict_color};border-color:{verdict_color};">'
+            f'{html.escape(verdict_label)}</span></td>'
+            f'<td>{cvss_str}</td>'
+            f'<td>{trust_html}</td>'
+            f'<td>{source_tool}</td>'
+            f'</tr>'
+        )
+        rows.append(row)
+
+        # Detail card (hidden by default)
+        rows.append(_finding_detail_card(f))
+
+    rows_str = "\n".join(rows)
+
+    truncation_html = ""
+    if truncated > 0:
+        truncation_html = (
+            f'<div class="truncation-notice">'
+            f'{truncated} more findings omitted. Export full JSON for complete data.'
+            f'</div>'
+        )
+
+    return f"""<div class="section">
+  <div class="section-title">Findings</div>
+  <div class="findings-table-wrap">
+    <table class="findings" id="findingsTable">
+      <thead>
+        <tr>
+          <th data-sort="severity" onclick="sortTable(0,'severity')">Severity <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(1,'text')">Title <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(2,'text')">File <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(3,'text')">Verdict <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="number" onclick="sortTable(4,'number')">CVSS <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(5,'text')">Trust <span class="sort-arrow">&#x25B4;</span></th>
+          <th data-sort="text" onclick="sortTable(6,'text')">Tool <span class="sort-arrow">&#x25B4;</span></th>
+        </tr>
+      </thead>
+      <tbody>
+{rows_str}
+      </tbody>
+    </table>
+  </div>
+  {truncation_html}
+</div>"""
+
+
+def _finding_detail_card(f: dict[str, Any]) -> str:
+    """Render the expandable detail card for a single finding."""
+    fid = html.escape(f.get("id", ""))
+    message = html.escape(f.get("message", ""))
+
+    # Evidence timeline
+    evidence_html = _evidence_timeline(f.get("evidence", []), f.get("file", ""))
+
+    # Code excerpts with syntax highlighting
+    code_html = _code_excerpts(f.get("evidence", []), f.get("file", ""))
+
+    # CVSS breakdown
+    cvss_html = _cvss_breakdown(f.get("cvss_vector"), f.get("cvss_score"))
+
+    # CWE link
+    cwe = f.get("cwe")
+    cwe_html = ""
+    if cwe:
+        cwe_id = html.escape(str(cwe))
+        cwe_num = re.sub(r"[^0-9]", "", cwe_id)
+        if cwe_num:
+            cwe_html = (
+                f'<a class="cwe-link" href="https://cwe.mitre.org/data/definitions/{cwe_num}.html" '
+                f'target="_blank" rel="noopener">CWE-{cwe_num}</a>'
+            )
+
+    # Remediation
+    remediation = f.get("remediation") or _default_remediation(f.get("type", ""))
+    remed_html = ""
+    if remediation:
+        remed_esc = html.escape(remediation)
+        remed_html = (
+            f'<div class="remediation-panel">'
+            f'<h4>Remediation</h4>'
+            f'<p style="font-size:13px;color:var(--text);">{remed_esc}</p>'
+            f'</div>'
+        )
+
+    # Verification badge
+    verdict = f.get("verdict", "unverified")
+    verdict_label, verdict_color = VERDICT_LABELS.get(verdict, ("Unknown", "#6b7280"))
+    badge_html = (
+        f'<span class="verdict-badge" style="color:{verdict_color};border-color:{verdict_color};'
+        f'font-size:13px;padding:4px 12px;">{html.escape(verdict_label)}</span>'
+    )
+
+    return f"""<tr class="detail-row" id="detail-{fid}" style="display:none;">
+  <td colspan="6" style="padding:0;">
+    <div class="finding-detail open">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-size:13px;color:var(--text);">{message}</div>
+        <div style="display:flex;gap:8px;align-items:center;">{cwe_html} {badge_html}</div>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-section">
+          <h4>Evidence Flow</h4>
+          {evidence_html}
+        </div>
+        <div class="detail-section">
+          <h4>Code</h4>
+          {code_html}
+          {cvss_html}
+        </div>
+      </div>
+      {remed_html}
+    </div>
+  </td>
+</tr>"""
+
+
+def _evidence_timeline(evidence: list[dict[str, Any]], fallback_file: str) -> str:
+    if not evidence:
+        return '<p style="color:var(--text-muted);font-size:13px;">No evidence data.</p>'
+
+    # Check if any item has a role (v1.1.0+)
+    has_roles = any(e.get("role") for e in evidence)
+
+    # Sort by order if available
+    sorted_ev = sorted(evidence, key=lambda e: e.get("order", 0))
+
+    items = []
+    for ev in sorted_ev:
+        role = ev.get("role") if has_roles else None
+        dot_color = ROLE_COLORS.get(role, "#94a3b8") if role else "#94a3b8"
+        label = html.escape(ev.get("label", ev.get("type", "evidence")))
+        if role:
+            label = f'{html.escape(role.title())}: {label}'
+        path = html.escape(ev.get("path", fallback_file))
+        line = ev.get("line", "?")
+
+        items.append(
+            f'<div class="ev-item">'
+            f'<div class="ev-dot" style="background:{dot_color};"></div>'
+            f'<div class="ev-label">{label}</div>'
+            f'<div class="ev-path">{path}:{line}</div>'
+            f'</div>'
+        )
+
+    return f'<div class="evidence-timeline">{"".join(items)}</div>'
+
+
+def _code_excerpts(evidence: list[dict[str, Any]], fallback_file: str) -> str:
+    blocks = []
+    for ev in evidence:
+        excerpt = ev.get("excerpt", "").strip()
+        if not excerpt:
+            continue
+
+        # Determine language from file extension
+        path = ev.get("path", fallback_file)
+        highlighted = _highlight_code(excerpt, path)
+        blocks.append(f'<div class="code-block">{highlighted}</div>')
+
+    if not blocks:
+        return '<p style="color:var(--text-muted);font-size:13px;">No code excerpts available.</p>'
+
+    return "\n".join(blocks[:3])  # Limit to 3 excerpts
+
+
+def _highlight_code(code: str, filepath: str) -> str:
+    """Apply regex-based syntax highlighting to a code excerpt."""
+    escaped = html.escape(code)
+
+    # Detect language from extension
+    ext = filepath.rsplit(".", 1)[-1].lower() if "." in filepath else ""
+    lang_map = {
+        "py": "python", "js": "javascript", "jsx": "javascript",
+        "ts": "javascript", "tsx": "javascript", "mjs": "javascript",
+        "go": "go", "java": "java", "php": "php", "rb": "ruby",
+        "rs": "rust", "sol": "solidity", "cs": "csharp",
+    }
+    lang = lang_map.get(ext, "")
+
+    # Apply comment highlighting first (before keywords)
+    # Single-line comments
+    escaped = re.sub(
+        r'(//.*?)$',
+        r'<span class="cmt">\1</span>',
+        escaped,
+        flags=re.MULTILINE,
+    )
+    # Python-style comments
+    escaped = re.sub(
+        r'(#.*?)$',
+        r'<span class="cmt">\1</span>',
+        escaped,
+        flags=re.MULTILINE,
+    )
+
+    # String literals (simple patterns -- double and single quoted)
+    escaped = re.sub(
+        r'(&quot;(?:[^&]|&(?!quot;))*?&quot;)',
+        r'<span class="str">\1</span>',
+        escaped,
+    )
+    escaped = re.sub(
+        r"(&#x27;(?:[^&]|&(?!#x27;))*?&#x27;)",
+        r'<span class="str">\1</span>',
+        escaped,
+    )
+
+    # Numbers
+    escaped = re.sub(
+        r'\b(\d+(?:\.\d+)?)\b',
+        r'<span class="num">\1</span>',
+        escaped,
+    )
+
+    # Language keywords
+    if lang and lang in _KW:
+        escaped = re.sub(
+            _KW[lang],
+            r'<span class="kw">\1</span>',
+            escaped,
+        )
+
+    return escaped
+
+
+def _cvss_breakdown(cvss_vector: str | None, cvss_score: float | None) -> str:
+    if not cvss_vector:
+        return ""
+
+    # Parse CVSS 3.1 vector string
+    # Example: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    metrics = {}
+    parts = cvss_vector.replace("CVSS:3.1/", "").split("/")
+    for part in parts:
+        if ":" in part:
+            k, v = part.split(":", 1)
+            metrics[k] = v
+
+    # Metric severity colors
+    metric_colors = {
+        "AV": {"N": "#dc2626", "A": "#ea580c", "L": "#ca8a04", "P": "#2563eb"},
+        "AC": {"L": "#dc2626", "H": "#2563eb"},
+        "PR": {"N": "#dc2626", "L": "#ca8a04", "H": "#2563eb"},
+        "UI": {"N": "#dc2626", "R": "#2563eb"},
+        "S": {"C": "#dc2626", "U": "#2563eb"},
+        "C": {"H": "#dc2626", "L": "#ca8a04", "N": "#6b7280"},
+        "I": {"H": "#dc2626", "L": "#ca8a04", "N": "#6b7280"},
+        "A": {"H": "#dc2626", "L": "#ca8a04", "N": "#6b7280"},
+    }
+
+    metric_labels = {
+        "AV": "Attack Vector", "AC": "Attack Complexity", "PR": "Privileges Required",
+        "UI": "User Interaction", "S": "Scope", "C": "Confidentiality",
+        "I": "Integrity", "A": "Availability",
+    }
+
+    segments = []
+    count = len(metrics)
+    if count == 0:
+        return ""
+
+    width_each = 100.0 / count
+    for mk, mv in metrics.items():
+        color = metric_colors.get(mk, {}).get(mv, "#6b7280")
+        label = metric_labels.get(mk, mk)
+        segments.append(
+            f'<div class="cvss-segment" style="width:{width_each:.1f}%;background:{color};" '
+            f'title="{html.escape(label)}: {html.escape(mv)}"></div>'
+        )
+
+    score_str = f"{cvss_score:.1f}" if cvss_score is not None else "?"
+    return (
+        f'<div style="margin-top:12px;">'
+        f'<h4 style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;'
+        f'color:var(--text-muted);margin-bottom:4px;">CVSS {score_str}</h4>'
+        f'<div class="cvss-bar">{"".join(segments)}</div>'
+        f'<div style="font-size:10px;color:var(--text-muted);margin-top:4px;">'
+        f'{html.escape(cvss_vector)}</div>'
+        f'</div>'
+    )
+
+
+def _default_remediation(finding_type: str) -> str:
+    """Look up a default remediation by finding type."""
+    ftype = finding_type.lower().strip()
+    for key, remedy in REMEDIATION_DEFAULTS.items():
+        if key in ftype or ftype in key:
+            return remedy
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Hotspots section
+# ---------------------------------------------------------------------------
+
+def _hotspots_section(hotspots: list[dict[str, Any]]) -> str:
+    if not hotspots:
+        return ""
+
+    rows = []
+    for h in hotspots[:50]:
+        title = html.escape(h.get("title", "Unknown"))
+        file_line = html.escape(f"{h.get('file', '?')}:{h.get('line', '?')}")
+        sev = html.escape(h.get("severity", "info"))
+        msg = html.escape(h.get("message", "")[:120])
+        rows.append(
+            f'<tr>'
+            f'<td><span class="sev-badge sev-{sev}" style="opacity:0.7;">{sev}</span></td>'
+            f'<td>{title}</td>'
+            f'<td style="font-family:monospace;font-size:12px;">{file_line}</td>'
+            f'<td style="color:var(--text-muted);font-size:12px;">{msg}</td>'
+            f'</tr>'
+        )
+
+    omitted = ""
+    if len(hotspots) > 50:
+        omitted = f'<div class="truncation-notice">{len(hotspots) - 50} more hotspots omitted.</div>'
+
+    return f"""<div class="section">
+  <div class="section-title">Hotspots</div>
+  <div class="findings-table-wrap">
+    <table class="hotspots">
+      <thead>
+        <tr>
+          <th>Severity</th>
+          <th>Title</th>
+          <th>File</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+{"".join(rows)}
+      </tbody>
+    </table>
+  </div>
+  {omitted}
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# Coverage panel
+# ---------------------------------------------------------------------------
+
+def _coverage_section(coverage: dict[str, Any], artifact: dict[str, Any]) -> str:
+    files_scanned = coverage.get("files_scanned", "-")
+    languages = coverage.get("languages", [])
+    tools_used = coverage.get("tools_used", [artifact.get("source_tool", "-")])
+    diff_aware = coverage.get("diff_aware", False)
+
+    if isinstance(languages, list):
+        lang_str = ", ".join(str(l) for l in languages) if languages else "Auto-detected"
+    else:
+        lang_str = str(languages) if languages else "Auto-detected"
+
+    if isinstance(tools_used, list):
+        tools_str = ", ".join(str(t) for t in tools_used) if tools_used else "-"
+    else:
+        tools_str = str(tools_used) if tools_used else "-"
+
+    diff_status = (
+        '<span style="color:var(--verified);">Enabled</span>'
+        if diff_aware
+        else '<span style="color:var(--text-muted);">Full scan</span>'
+    )
+
+    return f"""<div class="section">
+  <div class="section-title">Coverage</div>
+  <div class="coverage-grid">
+    <div class="cov-card">
+      <h4>Files Scanned</h4>
+      <p>{html.escape(str(files_scanned))}</p>
+    </div>
+    <div class="cov-card">
+      <h4>Languages</h4>
+      <p>{html.escape(lang_str)}</p>
+    </div>
+    <div class="cov-card">
+      <h4>Tools Used</h4>
+      <p>{html.escape(tools_str)}</p>
+    </div>
+    <div class="cov-card">
+      <h4>Diff-Aware Mode</h4>
+      <p>{diff_status}</p>
+    </div>
+  </div>
+</div>"""
+
+
+def _next_actions_section(artifact: dict[str, Any]) -> str:
+    findings = [
+        f for f in artifact.get("findings", [])
+        if f.get("kind") == "finding" and not f.get("suppressed")
+    ]
+    if not findings:
+        actions = ["No reportable findings remain. Keep the findings artifact for audit history."]
+    else:
+        actions = []
+        verified = [f for f in findings if f.get("verdict") == "verified"]
+        blocking = [
+            f for f in findings
+            if SEVERITY_ORDER.index(f.get("severity") if f.get("severity") in SEVERITY_ORDER else "info")
+            <= SEVERITY_ORDER.index("high")
+        ]
+        unverified = [f for f in findings if f.get("verdict") == "unverified"]
+        if verified:
+            actions.append(f"Fix or explicitly suppress {len(verified)} verified finding(s).")
+        if blocking:
+            actions.append(f"Use fail-on high in CI until {len(blocking)} high-or-higher finding(s) are resolved.")
+        if unverified:
+            actions.append(f"Run verification on {len(unverified)} unverified finding(s).")
+        actions.append("Re-render SARIF or HTML from the same findings artifact after triage.")
+
+    items = "".join(f"<li>{html.escape(action)}</li>" for action in actions)
+    return f"""<div class="section">
+  <div class="section-title">Next Actions</div>
+  <div class="cov-card">
+    <ol style="padding-left:20px;">{items}</ol>
+  </div>
+</div>"""
+
+
+# ---------------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------------
+
+def _footer(artifact: dict[str, Any]) -> str:
+    timestamp = html.escape(str(artifact.get("completed_at", ""))[:19])
+    return f"""<footer class="footer">
+  Generated by <strong>VulnScout</strong> &mdash; {timestamp}
+  &mdash; <a href="https://github.com/allsmog/vuln-scout" target="_blank" rel="noopener">github.com/allsmog/vuln-scout</a>
+</footer>"""
+
+
+# ---------------------------------------------------------------------------
+# Inline JavaScript
+# ---------------------------------------------------------------------------
+
+def _inline_script(findings: list[dict[str, Any]]) -> str:
+    return """<script>
+(function() {
+  'use strict';
+
+  // Severity sort order
+  var sevOrder = {critical: 5, high: 4, medium: 3, low: 2, info: 1};
+
+  // Toggle finding detail card
+  window.toggleDetail = function(fid) {
+    var row = document.getElementById('detail-' + fid);
+    if (!row) return;
+    var isVisible = row.style.display !== 'none';
+    // Close all other details
+    var allDetails = document.querySelectorAll('.detail-row');
+    allDetails.forEach(function(r) { r.style.display = 'none'; });
+    if (!isVisible) {
+      row.style.display = 'table-row';
+    }
+  };
+
+  // Scroll to finding from chain graph
+  window.scrollToFinding = function(fid) {
+    var rows = document.querySelectorAll('tr[data-finding-id="' + fid + '"]');
+    if (rows.length > 0) {
+      rows[0].scrollIntoView({behavior: 'smooth', block: 'center'});
+      // Flash highlight
+      rows[0].style.background = 'rgba(56, 189, 248, 0.15)';
+      setTimeout(function() { rows[0].style.background = ''; }, 1500);
+      // Open detail
+      toggleDetail(fid);
+    }
+  };
+
+  // Sort table by column
+  var sortState = {};
+  window.sortTable = function(colIndex, type) {
+    var table = document.getElementById('findingsTable');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    var dataRows = [];
+    var detailMap = {};
+
+    // Collect data rows and their associated detail rows
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (r.classList.contains('detail-row')) {
+        continue;
+      }
+      var fid = r.getAttribute('data-finding-id');
+      var detailRow = document.getElementById('detail-' + fid);
+      dataRows.push(r);
+      if (detailRow) {
+        detailMap[fid] = detailRow;
+      }
+    }
+
+    // Determine sort direction
+    var dir = sortState[colIndex] === 'asc' ? 'desc' : 'asc';
+    sortState[colIndex] = dir;
+
+    // Update header styling
+    var ths = table.querySelectorAll('thead th');
+    ths.forEach(function(th) { th.classList.remove('sorted'); });
+    if (ths[colIndex]) ths[colIndex].classList.add('sorted');
+
+    dataRows.sort(function(a, b) {
+      var aVal, bVal;
+      if (type === 'severity') {
+        aVal = sevOrder[a.getAttribute('data-severity')] || 0;
+        bVal = sevOrder[b.getAttribute('data-severity')] || 0;
+      } else if (type === 'number') {
+        aVal = parseFloat(a.children[colIndex] ? a.children[colIndex].textContent : '0') || 0;
+        bVal = parseFloat(b.children[colIndex] ? b.children[colIndex].textContent : '0') || 0;
+      } else {
+        aVal = (a.children[colIndex] ? a.children[colIndex].textContent : '').toLowerCase();
+        bVal = (b.children[colIndex] ? b.children[colIndex].textContent : '').toLowerCase();
+      }
+      if (aVal < bVal) return dir === 'asc' ? -1 : 1;
+      if (aVal > bVal) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    // Re-insert rows in sorted order
+    dataRows.forEach(function(r) {
+      tbody.appendChild(r);
+      var fid = r.getAttribute('data-finding-id');
+      if (detailMap[fid]) {
+        tbody.appendChild(detailMap[fid]);
+      }
+    });
+  };
+
+})();
+</script>"""

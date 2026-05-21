@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BENCHMARKS_DIR = ROOT / "whitebox-pentest" / "benchmarks"
+BENCHMARKS_DIR = ROOT / "vuln-scout" / "benchmarks"
 
 sys.path.insert(0, str(BENCHMARKS_DIR))
 

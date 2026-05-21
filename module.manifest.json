@@ -1,9 +1,9 @@
 {
   "id": "vuln-scout",
-  "displayName": "VulnScout Whitebox Pentesting",
-  "version": "3.1.1",
-  "description": "AI-powered whitebox pentesting with Semgrep, Joern CPG, CodeQL integration. 9-language support, STRIDE threat modeling, evidence-first findings.",
-  "category": "offense",
+  "displayName": "VulnScout Security Review",
+  "version": "3.2.0",
+  "description": "AI-assisted whitebox security review with deterministic quick scans, STRIDE threat modeling, evidence-first findings, and portable reports.",
+  "category": "security-review",
   "entry": "./kuzushi-module.js",
   "author": "allsmog",
   "license": "MIT"

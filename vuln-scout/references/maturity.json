@@ -1,0 +1,33 @@
+{
+  "profiles": {
+    "quick": "stable",
+    "deep": "beta",
+    "audit": "beta"
+  },
+  "commands": {
+    "full-audit": "stable",
+    "verify": "stable",
+    "report": "stable",
+    "scope": "stable",
+    "diff": "stable",
+    "scan": "beta",
+    "threats": "beta",
+    "sinks": "beta",
+    "trace": "beta",
+    "propagate": "beta",
+    "create-rule": "experimental",
+    "mutate": "experimental",
+    "auto-fix": "experimental"
+  },
+  "analyzers": {
+    "semgrep": "stable",
+    "secrets": "beta",
+    "codeql": "beta",
+    "joern": "beta",
+    "slither": "beta",
+    "trivy": "beta",
+    "checkov": "beta",
+    "custom-rules": "experimental",
+    "extended-detectors": "experimental"
+  }
+}

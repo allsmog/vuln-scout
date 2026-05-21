@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PLUGIN_ROOT = ROOT / "whitebox-pentest"
+PLUGIN_ROOT = ROOT / "vuln-scout"
 FIXTURES = ROOT / "tests" / "fixtures" / "code"
 
 

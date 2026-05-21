@@ -1,0 +1,854 @@
+#!/usr/bin/env python3
+"""Extended vulnerability class detectors.
+
+Provides detection logic for vulnerability classes not covered by the
+default Semgrep/CodeQL rulesets:
+  - Race conditions / TOCTOU
+  - Prototype pollution (JavaScript)
+  - File upload vulnerabilities
+  - OAuth/OIDC flaws
+  - Request smuggling indicators
+  - WebSocket vulnerabilities
+  - Mass assignment (deep)
+  - CORS misconfiguration (deep)
+
+Each detector scans source files and returns normalized findings.
+"""
+from __future__ import annotations
+
+import dataclasses
+import logging
+import re
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+log = logging.getLogger("vuln-scout")
+
+_EXCLUDED_DIRS = frozenset({
+    "node_modules", "vendor", "dist", "build", ".git",
+    "__pycache__", ".joern", ".claude", "skills", "references",
+    "docs", "examples", "agents", "commands", "hooks",
+    "test", "tests", "__tests__", "fixtures",
+})
+
+_LANG_EXTENSIONS = {
+    ".py", ".js", ".jsx", ".ts", ".tsx", ".go", ".java",
+    ".rb", ".php", ".cs", ".rs", ".sol", ".mjs", ".cjs",
+}
+
+
+# The scanner's own plugin directory name -- used to skip self-referential scans
+_PLUGIN_DIR_NAMES = frozenset({"vuln-scout", "whitebox-pentest", ".claude-plugin"})
+
+
+def _is_excluded(path: Path) -> bool:
+    parts = path.parts
+    if any(part in _EXCLUDED_DIRS for part in parts):
+        return True
+    # Skip the scanner's own plugin directory to avoid self-referential findings
+    if any(part in _PLUGIN_DIR_NAMES for part in parts):
+        return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Shared file index – one traversal for all detectors
+# ---------------------------------------------------------------------------
+
+@dataclasses.dataclass
+class FileIndex:
+    """Pre-computed file index for a source tree.  One rglob, many consumers."""
+
+    root: Path
+    _by_suffix: dict[str, list[Path]] = dataclasses.field(default_factory=dict)
+
+    @classmethod
+    def build(cls, root: Path) -> FileIndex:
+        by_suffix: dict[str, list[Path]] = {}
+        for f in root.rglob("*"):
+            if not f.is_file() or _is_excluded(f):
+                continue
+            by_suffix.setdefault(f.suffix, []).append(f)
+        return cls(root=root, _by_suffix=by_suffix)
+
+    def files_with_suffixes(self, suffixes: set[str]) -> Iterator[Path]:
+        """Yield all indexed files whose suffix is in *suffixes*."""
+        for suffix in suffixes:
+            yield from self._by_suffix.get(suffix, [])
+
+
+def _scan_files(
+    root: Path,
+    extensions: set[str],
+    patterns: list,
+    file_index: FileIndex | None = None,
+) -> list[dict[str, Any]]:
+    """Generic scanner: apply regex patterns to matching files and return findings.
+
+    Each pattern tuple is (regex, vuln_type, title, message, severity[, kind]).
+    The optional 6th element ``kind`` defaults to ``"finding"``.
+    """
+    findings: list[dict[str, Any]] = []
+    if file_index is not None:
+        file_iter = file_index.files_with_suffixes(extensions)
+    else:
+        file_iter = (
+            f for f in root.rglob("*")
+            if f.is_file() and f.suffix in extensions and not _is_excluded(f)
+        )
+    for f in file_iter:
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        rel = str(f.relative_to(root))
+        for i, line in enumerate(text.splitlines(), 1):
+            for entry in patterns:
+                pattern, vuln_type, title, message, severity = entry[:5]
+                kind = entry[5] if len(entry) > 5 else "finding"
+                if pattern.search(line):
+                    findings.append(_make_finding(
+                        vuln_type, title, rel, i, line.strip()[:200],
+                        message, severity, kind,
+                    ))
+    return findings
+
+
+def _make_finding(vuln_type: str, title: str, file: str, line: int,
+                  excerpt: str, message: str, severity: str,
+                  kind: str = "finding") -> dict[str, Any]:
+    return {
+        "id": "",
+        "stable_key": "",
+        "kind": kind,
+        "severity": severity,
+        "type": vuln_type,
+        "title": title,
+        "file": file,
+        "line": line,
+        "verdict": "unverified",
+        "confidence": "medium",
+        "source_tool": "vuln-class-detector",
+        "message": message,
+        "evidence": [{
+            "type": "pattern-match",
+            "label": vuln_type,
+            "path": file,
+            "line": line,
+            "excerpt": excerpt,
+        }],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Race Conditions / TOCTOU
+# ---------------------------------------------------------------------------
+
+def detect_race_conditions(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect potential race conditions and TOCTOU patterns."""
+    patterns = [
+        # Filesystem TOCTOU: check then use -- real vulnerability
+        (re.compile(r'(?:os\.path\.exists|os\.access|Path.*\.exists)\s*\('),
+         "race-condition", "TOCTOU: filesystem check-then-use",
+         "File existence check followed by file operation creates a race condition (CWE-367)", "medium"),
+        # Database TOCTOU: SELECT then UPDATE without transaction -- real vulnerability
+        (re.compile(r'(?:SELECT.*FROM.*WHERE)(?:(?!BEGIN|TRANSACTION|FOR\s+UPDATE).)*$', re.IGNORECASE),
+         "race-condition", "Database TOCTOU: SELECT without FOR UPDATE",
+         "SELECT without FOR UPDATE or transaction may allow concurrent modification (CWE-367)", "medium"),
+        # Threading/goroutine/static -- informational audit points, not confirmed vulns
+        (re.compile(r'(?:threading\.Thread|multiprocessing\.Process)\s*\('),
+         "race-condition", "Potential race condition in concurrent code",
+         "Concurrent access without visible locking may cause race conditions (CWE-362)", "low", "hotspot"),
+        (re.compile(r'go\s+\w+\s*\('),
+         "race-condition", "Goroutine without visible synchronization",
+         "Goroutine accessing shared state without mutex/channel may race (CWE-362)", "low", "hotspot"),
+        (re.compile(r'(?:static\s+(?!final)\w+\s+\w+\s*=|volatile\s+)'),
+         "race-condition", "Mutable shared state without synchronization",
+         "Mutable static field may cause race conditions in concurrent access (CWE-362)", "low", "hotspot"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# Prototype Pollution (JavaScript)
+# ---------------------------------------------------------------------------
+
+def detect_prototype_pollution(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect prototype pollution patterns in JavaScript/TypeScript."""
+    js_exts = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+    patterns = [
+        # Object.assign with user input
+        (re.compile(r'Object\.assign\s*\(\s*\{?\}?\s*,\s*(?:req\.|params\.|body\.|query\.)'),
+         "prototype-pollution", "Prototype pollution via Object.assign",
+         "User-controlled object merged into target without prototype sanitization (CWE-1321)", "high"),
+        # Lodash/underscore deep merge with user input
+        (re.compile(r'(?:_\.merge|_\.defaultsDeep|lodash\.merge)\s*\('),
+         "prototype-pollution", "Prototype pollution via deep merge",
+         "Deep merge function with potentially user-controlled input (CWE-1321)", "medium"),
+        # NOTE: for-in loops removed -- too broad, matches all JS for-in (36 FPs on Juice Shop)
+        # Direct __proto__ access
+        (re.compile(r'__proto__|constructor\s*\[\s*["\']prototype'),
+         "prototype-pollution", "Direct prototype chain access",
+         "Direct access to __proto__ or constructor.prototype (CWE-1321)", "high"),
+    ]
+    return _scan_files(root, js_exts, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# File Upload Vulnerabilities
+# ---------------------------------------------------------------------------
+
+def detect_file_upload_vulns(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect unsafe file upload handling."""
+    patterns = [
+        # Upload handler presence is an audit point, not a confirmed vuln
+        (re.compile(r'(?:multer|formidable|busboy)\s*\('),
+         "file-upload", "File upload handler (review extension validation)",
+         "File upload handler detected -- verify extension/MIME validation (CWE-434)", "low", "hotspot"),
+        # Path join with user-controlled filename -- more likely a real issue
+        (re.compile(r'(?:path\.join|os\.path\.join|filepath\.Join)\s*\([^)]*(?:filename|originalname|name)'),
+         "file-upload", "Path construction with user-controlled filename",
+         "User-controlled filename in path join without basename extraction (CWE-22)", "high"),
+        # Python/Flask file save without secure_filename
+        (re.compile(r'\.save\s*\(\s*(?!.*secure_filename)'),
+         "file-upload", "File save without secure_filename",
+         "File saved without secure_filename sanitization (CWE-434)", "medium"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# OAuth/OIDC Flaws
+# ---------------------------------------------------------------------------
+
+def detect_oauth_flaws(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect common OAuth/OIDC implementation flaws."""
+    patterns = [
+        # Missing state parameter
+        (re.compile(r'(?:authorize_url|authorization_url|auth_url)\s*(?:=|\.)\s*(?!.*state)'),
+         "oauth-flaw", "OAuth authorization without state parameter",
+         "Missing CSRF protection via state parameter in OAuth flow (CWE-352)", "high"),
+        # Token in URL query parameter
+        (re.compile(r'(?:access_token|token)\s*=.*(?:query|params|searchParams|url)'),
+         "oauth-flaw", "Access token in URL query parameter",
+         "Access token exposed in URL, may be logged or leaked via Referer (CWE-598)", "medium"),
+        # No PKCE (code_challenge)
+        (re.compile(r'(?:grant_type\s*=\s*["\']authorization_code)(?!.*code_challenge)'),
+         "oauth-flaw", "Authorization code flow without PKCE",
+         "Authorization code flow without PKCE is vulnerable to code interception (CWE-345)", "medium"),
+        # Implicit grant (deprecated)
+        (re.compile(r'response_type\s*=\s*["\']token'),
+         "oauth-flaw", "OAuth implicit grant flow (deprecated)",
+         "Implicit grant exposes tokens in URL fragment, use authorization code + PKCE instead", "medium"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# Request Smuggling Indicators
+# ---------------------------------------------------------------------------
+
+def detect_request_smuggling(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect request smuggling indicators in proxy/server configs."""
+    config_exts = {".conf", ".cfg", ".yml", ".yaml", ".toml", ".json", ".py", ".js", ".ts", ".go", ".java"}
+    patterns = [
+        # Custom Transfer-Encoding handling
+        (re.compile(r'[Tt]ransfer-[Ee]ncoding'),
+         "request-smuggling", "Custom Transfer-Encoding handling",
+         "Manual Transfer-Encoding handling may enable HTTP request smuggling (CWE-444)", "medium"),
+        # Proxy pass without normalization
+        (re.compile(r'proxy_pass\s+http'),
+         "request-smuggling", "Reverse proxy without path normalization",
+         "Proxy pass may forward ambiguous requests enabling smuggling (CWE-444)", "low"),
+        # Custom HTTP parsing
+        (re.compile(r'(?:Content-Length|content.length)\s*(?:=|:)\s*(?:parseInt|Number|int\(|strconv\.Atoi)'),
+         "request-smuggling", "Manual Content-Length parsing",
+         "Custom Content-Length parsing may disagree with backend parser (CWE-444)", "medium"),
+    ]
+    return _scan_files(root, config_exts, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket Vulnerabilities
+# ---------------------------------------------------------------------------
+
+def detect_websocket_vulns(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect WebSocket security issues."""
+    ws_exts = {".js", ".ts", ".tsx", ".jsx", ".py", ".go", ".java", ".rb"}
+    patterns = [
+        # Missing origin validation
+        (re.compile(r"""(?:WebSocket|ws)\s*\.?\s*(?:Server|on\s*\(\s*['"]connection)"""),
+         "websocket-vuln", "WebSocket server without visible origin validation",
+         "WebSocket connection without origin validation enables cross-site hijacking (CWE-346)", "medium"),
+        # User input to eval/exec in WebSocket handler
+        (re.compile(r"""on\s*\(\s*['"]message['"][^)]*\)\s*(?:=>|{)[^}]*(?:eval|Function)\s*\("""),
+         "websocket-vuln", "Code execution in WebSocket message handler",
+         "WebSocket message handler with dynamic code execution (CWE-94)", "critical"),
+    ]
+    return _scan_files(root, ws_exts, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# Mass Assignment (deep)
+# ---------------------------------------------------------------------------
+
+def detect_mass_assignment(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect mass assignment vulnerabilities across frameworks."""
+    patterns = [
+        # Express/Node: Object.assign(model, req.body) or spread
+        (re.compile(r'(?:Object\.assign|\.\.\.req\.body|\.\.\.request\.body)'),
+         "mass-assignment", "Mass assignment via request body spread",
+         "Request body directly assigned to model without field filtering (CWE-915)", "medium"),
+        # Rails: params without permit
+        (re.compile(r'\.(?:create|update|new)\s*\(\s*params(?!\s*\.\s*(?:require|permit))'),
+         "mass-assignment", "Rails mass assignment without strong parameters",
+         "Model create/update with unfiltered params (CWE-915)", "high"),
+        # Django: ModelForm without fields restriction
+        (re.compile(r'class\s+\w+\s*\(\s*(?:forms\.ModelForm|ModelForm)\s*\)'),
+         "mass-assignment", "Django ModelForm (check fields restriction)",
+         "ModelForm without explicit fields may expose all model fields (CWE-915)", "low"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# CORS Misconfiguration (deep)
+# ---------------------------------------------------------------------------
+
+def detect_cors_misconfig(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect CORS misconfigurations."""
+    patterns = [
+        # Wildcard origin with credentials
+        (re.compile(r"""Access-Control-Allow-Origin.*\*"""),
+         "cors-misconfig", "CORS wildcard origin",
+         "Access-Control-Allow-Origin: * may be too permissive (CWE-942)", "medium"),
+        # Origin reflection without validation
+        (re.compile(r"""(?:origin|Origin)\s*(?:=|:)\s*(?:req\.|request\.|headers)"""),
+         "cors-misconfig", "CORS origin reflection",
+         "Origin header reflected without allowlist validation (CWE-942)", "high"),
+        # Null origin allowed
+        (re.compile(r"""(?:allow_origin|allowed_origins|origin).*null""", re.IGNORECASE),
+         "cors-misconfig", "CORS null origin allowed",
+         "Null origin allowed in CORS, exploitable via sandboxed iframe (CWE-942)", "high"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS | {".conf", ".yml", ".yaml"}, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# SQL Injection (template literal / string concat)
+# ---------------------------------------------------------------------------
+
+def detect_sql_injection(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect SQL injection via template literals and string concatenation.
+
+    Catches patterns that Semgrep's generic ``auto`` ruleset misses,
+    particularly ORM-specific patterns like Sequelize's .query() with
+    template literal interpolation.
+    """
+    js_exts = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs"}
+    patterns = [
+        # Template literal with SQL keywords + ${} interpolation (JS/TS)
+        (re.compile(r"""\.(?:query|execute)\s*\(\s*`[^`]*(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)[^`]*\$\{""", re.IGNORECASE),
+         "sql-injection", "SQL injection via template literal interpolation",
+         "SQL keywords with ${} interpolation in query call (CWE-89)", "high"),
+        # f-string with SQL keywords (Python) -- backup for rule_generator
+        (re.compile(r"""\.(?:query|execute|raw)\s*\(\s*f['"][^'"]*(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)""", re.IGNORECASE),
+         "sql-injection", "SQL injection via f-string",
+         "SQL keywords with f-string interpolation in query call (CWE-89)", "high"),
+        # String concat with SQL keywords + user input reference
+        (re.compile(r"""(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE)[^"'`]*["']\s*\+\s*(?:req\.|request\.|params\.|body\.|query\.|args\.)""", re.IGNORECASE),
+         "sql-injection", "SQL injection via string concatenation with user input",
+         "SQL string concatenated with request input (CWE-89)", "high"),
+        # String concat with SQL keywords (generic, lower confidence)
+        (re.compile(r"""(?:SELECT|INSERT|UPDATE|DELETE)\s[^"'`]*["']\s*\+\s*\w+\s*\+\s*["']""", re.IGNORECASE),
+         "sql-injection", "SQL injection via string concatenation",
+         "SQL string built with concatenation (CWE-89)", "medium"),
+    ]
+    return _scan_files(root, _LANG_EXTENSIONS, patterns, file_index=file_index)
+
+
+# ---------------------------------------------------------------------------
+# SSRF (two-pass: fetch/request with variable from user input)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# PHP-Specific Injection Patterns (fallback for Semgrep PHP gaps)
+# ---------------------------------------------------------------------------
+
+def detect_php_injection(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect classic PHP injection patterns using superglobal → sink tracing.
+
+    PHP superglobals ($_GET, $_POST, $_REQUEST, $_COOKIE, $_FILES) make
+    source-to-sink connections visible even to regex, because the source
+    is a distinctive token. This catches what Semgrep's free-tier PHP
+    rules miss.
+    """
+    php_exts = {".php"}
+    findings: list[dict[str, Any]] = []
+
+    # PHP user input sources
+    src = r"""\$_(GET|POST|REQUEST|COOKIE)\s*\["""
+
+    file_iter = file_index.files_with_suffixes(php_exts) if file_index else root.rglob("*.php")
+    for f in file_iter:
+        if file_index is None and _is_excluded(f):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        rel = str(f.relative_to(root))
+        lines = text.splitlines()
+
+        for i, line in enumerate(lines):
+            # --- PHP SQL Injection ---
+            # Pattern: "$var" inside SQL string with superglobal nearby
+            if re.search(r"""(?:SELECT|INSERT|UPDATE|DELETE|FROM|WHERE).*\$\w+""", line, re.IGNORECASE):
+                # Check if any superglobal is used within 10 lines above
+                window = "\n".join(lines[max(0, i - 10):i + 1])
+                if re.search(src, window):
+                    # Check it's not parameterized
+                    if not re.search(r"""(?:prepare|bind_param|bindParam|bindValue|\?\s*,|\?\s*\))""", window):
+                        findings.append(_make_finding(
+                            "sql-injection",
+                            "PHP SQL injection: superglobal in SQL query",
+                            rel, i + 1, line.strip()[:200],
+                            "PHP superglobal interpolated into SQL string without parameterization (CWE-89)",
+                            "high",
+                        ))
+
+            # --- PHP Reflected XSS ---
+            # Pattern: echo/print/.= with superglobal, no htmlspecialchars
+            if re.search(r"""(?:echo|print\b|\.=)""", line):
+                if re.search(src, line):
+                    if not re.search(r"""(?:htmlspecialchars|htmlentities|htmlEncode|strip_tags|e\()""", line):
+                        findings.append(_make_finding(
+                            "xss",
+                            "PHP reflected XSS: superglobal echoed without encoding",
+                            rel, i + 1, line.strip()[:200],
+                            "PHP superglobal output without htmlspecialchars/htmlentities (CWE-79)",
+                            "high",
+                        ))
+
+            # --- PHP File Inclusion (LFI/RFI) ---
+            # Pattern: include/require with superglobal
+            if re.search(r"""(?:include|require|include_once|require_once)\s*\(?\s*\$""", line):
+                window = "\n".join(lines[max(0, i - 5):i + 1])
+                if re.search(src, window):
+                    findings.append(_make_finding(
+                        "path-traversal",
+                        "PHP file inclusion with user input (LFI/RFI)",
+                        rel, i + 1, line.strip()[:200],
+                        "PHP include/require with superglobal enables local/remote file inclusion (CWE-98)",
+                        "high",
+                    ))
+
+            # --- PHP File Upload (no validation) ---
+            if re.search(r"""move_uploaded_file\s*\(""", line):
+                window = "\n".join(lines[max(0, i - 10):i + 5])
+                if not re.search(r"""(?:mime|type|extension|getimagesize|finfo|in_array|pathinfo)""", window, re.IGNORECASE):
+                    findings.append(_make_finding(
+                        "file-upload",
+                        "PHP file upload without type validation",
+                        rel, i + 1, line.strip()[:200],
+                        "move_uploaded_file() without MIME/extension validation (CWE-434)",
+                        "high",
+                    ))
+
+    return findings
+
+
+def detect_ssrf_two_pass(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect SSRF via variable assignment from user input then HTTP request.
+
+    Single-line regex can't catch patterns like:
+        const url = req.body.imageUrl   // line N
+        await fetch(url)                 // line N+5
+
+    This does a two-pass analysis: find fetch/request calls with a variable,
+    then check if that variable was assigned from user input nearby.
+    """
+    findings: list[dict[str, Any]] = []
+    exts = {".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".rb", ".php"}
+
+    # Patterns for HTTP request functions with a variable (not a string literal)
+    request_pattern = re.compile(r'(?:fetch|axios\.?\w*|requests?\.\w+|http\.(?:Get|Post)|got|needle|urllib\w*\.?\w*)\s*\(\s*(\w+)\s*[,)]')
+    # Patterns for user input assignment
+    user_input_pattern = re.compile(r'(?:req\.|request\.|params\.|body\.|query\.|args\.|form\.|GET\[|POST\[)')
+
+    file_iter = file_index.files_with_suffixes(exts) if file_index else root.rglob("*")
+    for f in file_iter:
+        if file_index is None and (not f.is_file() or f.suffix not in exts or _is_excluded(f)):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+
+        rel = str(f.relative_to(root))
+        lines = text.splitlines()
+
+        for i, line in enumerate(lines):
+            m = request_pattern.search(line)
+            if not m:
+                continue
+            var_name = m.group(1)
+            # Skip if the argument is a string literal or common non-user variable
+            if var_name in ("url", "uri", "endpoint", "target", "href", "link"):
+                # These COULD be user-controlled -- check assignment
+                pass
+            elif var_name in ("this", "self", "config", "options", "baseUrl", "BASE_URL"):
+                continue  # Likely not user-controlled
+
+            # Look backwards up to 15 lines for assignment of this variable from user input
+            start = max(0, i - 15)
+            context = "\n".join(lines[start:i + 1])
+            assign_pattern = re.compile(rf'(?:const|let|var|{var_name})\s+{var_name}\s*=\s*.*{user_input_pattern.pattern}')
+            if assign_pattern.search(context):
+                findings.append(_make_finding(
+                    "ssrf",
+                    f"SSRF: user-controlled URL passed to HTTP request",
+                    rel, i + 1, line.strip()[:200],
+                    f"Variable '{var_name}' assigned from user input and passed to HTTP request function (CWE-918)",
+                    "high",
+                ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# CI/CD Pipeline Security
+# ---------------------------------------------------------------------------
+
+def detect_cicd_vulns(root: Path) -> list[dict[str, Any]]:
+    """Detect CI/CD pipeline security issues."""
+    ci_exts = {".yml", ".yaml"}
+    findings: list[dict[str, Any]] = []
+
+    # Check GitHub Actions workflows
+    gh_dir = root / ".github" / "workflows"
+    if gh_dir.is_dir():
+        for f in gh_dir.rglob("*.yml"):
+            try:
+                text = f.read_text(errors="replace")
+            except OSError:
+                continue
+            rel = str(f.relative_to(root))
+            for i, line in enumerate(text.splitlines(), 1):
+                # Expression injection in workflow
+                if re.search(r'\$\{\{\s*github\.event\.\w+\.\w+\.(?:title|body|head_ref)', line):
+                    findings.append(_make_finding(
+                        "cicd-injection",
+                        "GitHub Actions expression injection",
+                        rel, i, line.strip()[:200],
+                        "Untrusted event data in workflow expression enables command injection",
+                        "critical",
+                    ))
+                # pull_request_target with checkout
+                if "pull_request_target" in line:
+                    findings.append(_make_finding(
+                        "cicd-injection",
+                        "pull_request_target trigger (review carefully)",
+                        rel, i, line.strip()[:200],
+                        "pull_request_target with code checkout runs untrusted PR code in privileged context",
+                        "high",
+                    ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# IDOR / Missing Ownership Check
+# ---------------------------------------------------------------------------
+
+def detect_missing_ownership_check(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect endpoints that query by req.params.id without ownership validation.
+
+    Pattern: req.params.id → Model.findOne({where: {id}}) → no ENFORCED check
+    that the result belongs to the authenticated user.
+
+    Key insight: an ownership "check" only counts if it leads to a REJECTION
+    (res.status(401/403), throw, return next(error)).  Code that merely
+    observes the mismatch (logging, analytics, CTF scoring) without blocking
+    the response is NOT a real authorization check.
+    """
+    findings: list[dict[str, Any]] = []
+    exts = {".js", ".ts", ".tsx", ".jsx", ".py", ".rb", ".go", ".java", ".php"}
+
+    param_id_pattern = re.compile(r'req\.params\.(\w+)')
+    db_query_pattern = re.compile(r'(?:findOne|findByPk|findById|findByID|findAll|findOrCreate)\s*\(')
+
+    # A real ownership enforcement must have a DENIAL response
+    denial_pattern = re.compile(
+        r'(?:res\.status\s*\(\s*(?:401|403|404)\s*\)'
+        r'|throw\s+new\s+(?:Error|Unauthorized|Forbidden|HttpException)'
+        r'|return\s+next\s*\(\s*(?:new\s+Error|err)'
+        r'|raise\s+(?:Unauthorized|Forbidden|PermissionDenied|Http403|Http401)'
+        r'|res\.sendStatus\s*\(\s*(?:401|403)\s*\))',
+    )
+
+    file_iter = file_index.files_with_suffixes(exts) if file_index else root.rglob("*")
+    for f in file_iter:
+        if file_index is None and (not f.is_file() or f.suffix not in exts or _is_excluded(f)):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+
+        rel = str(f.relative_to(root))
+        if any(d in rel for d in ("test", "spec", "mock", "__tests__")):
+            continue
+
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            param_match = param_id_pattern.search(line)
+            if not param_match:
+                continue
+
+            param_name = param_match.group(1)
+
+            # Look for database query using this param within next 5 lines
+            window_end = min(len(lines), i + 6)
+            query_window = "\n".join(lines[i:window_end])
+            if not db_query_pattern.search(query_window):
+                continue
+
+            # Check for ENFORCED ownership validation: the key is that
+            # a real check must lead to a DENIAL (403, throw, etc).
+            # If ownership keywords appear but with no denial, it's just
+            # observation (logging, CTF scoring, analytics) not enforcement.
+            check_end = min(len(lines), i + 25)
+            check_window = "\n".join(lines[i:check_end])
+
+            if denial_pattern.search(check_window):
+                continue  # Real authorization enforcement exists
+
+            findings.append(_make_finding(
+                "idor",
+                f"IDOR: req.params.{param_name} used in DB query without authorization enforcement",
+                rel, i + 1, line.strip()[:200],
+                f"Resource accessed by req.params.{param_name} without verifying ownership -- "
+                f"no 401/403 response or access denial found in handler (CWE-639)",
+                "high",
+            ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Frontend XSS (unsafe DOM bindings)
+# ---------------------------------------------------------------------------
+
+def detect_frontend_xss(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect unsafe DOM bindings in frontend templates.
+
+    Scans Angular, React, and Vue templates for patterns that bypass
+    framework auto-escaping and render raw HTML from potentially
+    user-controlled sources.
+    """
+    findings: list[dict[str, Any]] = []
+
+    # Angular: [innerHTML]="..." in .html templates
+    angular_pattern = re.compile(r'\[innerHTML\]\s*=\s*["\']')
+    # Angular: bypassSecurityTrust* in .ts files
+    bypass_pattern = re.compile(r'bypassSecurityTrust(?:Html|Script|Style|Url|ResourceUrl)')
+    # Vue: v-html directive
+    vue_pattern = re.compile(r'\bv-html\s*=\s*["\']')
+
+    # Scan HTML templates
+    html_iter = file_index.files_with_suffixes({".html"}) if file_index else root.rglob("*.html")
+    for f in html_iter:
+        if file_index is None and _is_excluded(f):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        rel = str(f.relative_to(root))
+        for i, line in enumerate(text.splitlines(), 1):
+            if angular_pattern.search(line):
+                findings.append(_make_finding(
+                    "xss", "DOM XSS: Angular [innerHTML] binding",
+                    rel, i, line.strip()[:200],
+                    "Angular [innerHTML] bypasses auto-escaping, may render attacker-controlled HTML (CWE-79)",
+                    "medium",
+                ))
+            if vue_pattern.search(line):
+                findings.append(_make_finding(
+                    "xss", "DOM XSS: Vue v-html directive",
+                    rel, i, line.strip()[:200],
+                    "Vue v-html renders raw HTML, may allow XSS if source is user-controlled (CWE-79)",
+                    "medium",
+                ))
+
+    # Scan TypeScript for Angular bypass
+    ts_iter = file_index.files_with_suffixes({".ts"}) if file_index else root.rglob("*.ts")
+    for f in ts_iter:
+        if file_index is None and _is_excluded(f):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+        rel = str(f.relative_to(root))
+        for i, line in enumerate(text.splitlines(), 1):
+            if bypass_pattern.search(line):
+                findings.append(_make_finding(
+                    "xss", "DOM XSS: Angular security bypass",
+                    rel, i, line.strip()[:200],
+                    "bypassSecurityTrust* disables Angular sanitization, may allow XSS (CWE-79)",
+                    "high",
+                ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Stored XSS (user data → DB → unsafe render)
+# ---------------------------------------------------------------------------
+
+def detect_stored_xss_risk(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect stored XSS risk: user data saved to DB without sanitization.
+
+    Catches two patterns:
+    1. Auto-CRUD frameworks (finale, epilogue, sequelize-restful) that expose
+       models with string fields to POST -- req.body goes straight to DB.
+    2. Explicit Model.create(req.body) or record.field = req.body.x → save()
+       without HTML sanitization.
+
+    These are flagged as stored-xss-risk because the data MAY be rendered
+    unsafely in a frontend. Claude analysis determines if it actually is.
+    """
+    findings: list[dict[str, Any]] = []
+    exts = {".js", ".ts", ".tsx", ".jsx", ".py", ".rb", ".php"}
+
+    # Pattern 1: Auto-CRUD frameworks
+    auto_crud_pattern = re.compile(
+        r'(?:finale|epilogue|sequelize-restful|restful)'
+        r'\.(?:resource|initialize|serve)\s*\(',
+    )
+    # Pattern 2: Model.create with req.body (mass assignment → stored data)
+    mass_create_pattern = re.compile(
+        r'\.create\s*\(\s*(?:req\.body|request\.body|params|data)\b',
+    )
+    # Pattern 3: field assignment from req then save
+    field_assign_pattern = re.compile(
+        r'\.\w+\s*=\s*(?:req\.body|request\.body|req\.file|request\.files)',
+    )
+    # Pattern 4: File originalname stored without sanitization
+    filename_store_pattern = re.compile(
+        r'(?:originalname|filename|file\.name)\b',
+    )
+
+    file_iter = file_index.files_with_suffixes(exts) if file_index else root.rglob("*")
+    for f in file_iter:
+        if file_index is None and (not f.is_file() or f.suffix not in exts or _is_excluded(f)):
+            continue
+        try:
+            text = f.read_text(errors="replace")
+        except OSError:
+            continue
+
+        rel = str(f.relative_to(root))
+        lines = text.splitlines()
+
+        # Check for auto-CRUD (affects entire app, flag once per file)
+        for i, line in enumerate(lines):
+            if auto_crud_pattern.search(line):
+                findings.append(_make_finding(
+                    "stored-xss-risk",
+                    "Auto-CRUD framework stores user input directly to DB",
+                    rel, i + 1, line.strip()[:200],
+                    "Auto-CRUD (finale/epilogue/restful) writes req.body to DB models without sanitization. "
+                    "String fields may contain XSS payloads rendered in admin/UI views (CWE-79)",
+                    "medium",
+                ))
+                break  # One per file
+
+        # Check for mass create with req.body
+        for i, line in enumerate(lines):
+            if mass_create_pattern.search(line):
+                # Check if sanitization exists nearby
+                window = "\n".join(lines[max(0, i - 5):i + 1])
+                if not re.search(r'(?i)sanitize|escape|encode|purify|clean|xss', window):
+                    findings.append(_make_finding(
+                        "stored-xss-risk",
+                        "Model.create() with unsanitized user input",
+                        rel, i + 1, line.strip()[:200],
+                        "User input (req.body) stored via Model.create() without HTML sanitization. "
+                        "Data may be rendered unsafely in frontend views (CWE-79)",
+                        "medium",
+                    ))
+
+        # Check for file originalname storage
+        for i, line in enumerate(lines):
+            if filename_store_pattern.search(line):
+                # Check if it's being stored (near a write/create/save/pipe)
+                window = "\n".join(lines[max(0, i - 3):min(len(lines), i + 4)])
+                if re.search(r'(?:save|create|write|pipe|insert|update|store)', window, re.IGNORECASE):
+                    if not re.search(r'(?i)sanitize|escape|basename|secure_filename', window):
+                        findings.append(_make_finding(
+                            "stored-xss-risk",
+                            "User-controlled filename stored without sanitization",
+                            rel, i + 1, line.strip()[:200],
+                            "File originalname stored to DB/filesystem without sanitization. "
+                            "If rendered in UI, enables stored XSS via crafted filename (CWE-79)",
+                            "medium",
+                        ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def run_all_detectors(target_path: str) -> list[dict[str, Any]]:
+    """Run all extended vulnerability class detectors.
+
+    Returns a list of findings to be merged into the main findings list.
+    """
+    root = Path(target_path).resolve()
+    if not root.is_dir():
+        return []
+
+    # One directory traversal shared by all 15 detectors
+    file_index = FileIndex.build(root)
+
+    all_findings: list[dict[str, Any]] = []
+
+    detectors = [
+        ("SQL injection", detect_sql_injection),
+        ("PHP injection", detect_php_injection),
+        ("SSRF (two-pass)", detect_ssrf_two_pass),
+        ("race conditions", detect_race_conditions),
+        ("prototype pollution", detect_prototype_pollution),
+        ("file upload", detect_file_upload_vulns),
+        ("OAuth/OIDC", detect_oauth_flaws),
+        ("request smuggling", detect_request_smuggling),
+        ("WebSocket", detect_websocket_vulns),
+        ("mass assignment", detect_mass_assignment),
+        ("CORS", detect_cors_misconfig),
+        ("CI/CD", detect_cicd_vulns),
+        ("IDOR", detect_missing_ownership_check),
+        ("frontend XSS", detect_frontend_xss),
+        ("stored XSS risk", detect_stored_xss_risk),
+    ]
+
+    for name, detector in detectors:
+        try:
+            # CI/CD detector scans a subdirectory, doesn't use file_index
+            if detector is detect_cicd_vulns:
+                findings = detector(root)
+            else:
+                findings = detector(root, file_index=file_index)
+            if findings:
+                log.info("Extended detector [%s]: %d findings", name, len(findings))
+                all_findings.extend(findings)
+        except Exception as e:
+            log.warning("Extended detector [%s] failed: %s", name, e)
+
+    log.info("Extended detectors total: %d findings", len(all_findings))
+    return all_findings

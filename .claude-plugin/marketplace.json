@@ -5,9 +5,14 @@
   },
   "plugins": [
     {
+      "name": "vuln-scout",
+      "source": "./vuln-scout",
+      "description": "AI-assisted whitebox security review with a stable offline quick scan, evidence-backed verification, suppressions, and SARIF/HTML/bundle reports. Optional deep analyzers when installed. Five canonical workflows: full-audit, verify, report, scope, diff."
+    },
+    {
       "name": "whitebox-pentest",
       "source": "./whitebox-pentest",
-      "description": "AI-powered whitebox penetration testing plugin for Claude Code. 9 languages, 27 skills, 8 autonomous agents."
+      "description": "Deprecated one-release compatibility aliases for VulnScout 3.2. Provides /whitebox-pentest:* shim commands that direct users to the canonical /vuln-scout:* commands."
     }
   ]
 }

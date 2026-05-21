@@ -1,0 +1,184 @@
+---
+name: report
+description: "[stable] Generate report output from `.claude/findings.json` in markdown, json, SARIF, interactive HTML, PR comment, or evidence bundle format"
+argument-hint: "[output_file] [--format md|json|sarif|html|pr-comment|bundle] [--suppressions path] [--fail-on severity]"
+allowed-tools:
+  - Read
+  - Write
+  - Glob
+  - Task
+  - Bash
+---
+
+# Generate Findings Report
+
+Generate a developer-facing report from `.claude/findings.json`.
+
+Unified standalone renderer:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format md \
+  --output security-report.md
+```
+
+## Flags
+
+| Flag | Effect |
+|------|--------|
+| `--format` | Output `md` (default), `json`, `sarif`, `html`, `pr-comment`, or `bundle` |
+| `--suppressions` | Apply `.vuln-scout-ignore` suppressions before rendering |
+| `--fail-on` | Exit with code `2` if unsuppressed findings exist at or above the given severity |
+
+## Source of truth
+
+- Read `.claude/findings.json`
+- Validate it against `vuln-scout/references/findings.schema.json`
+- Respect `kind`
+  - `finding`: reportable issue
+  - `hotspot`: risky audit pivot, shown separately from findings
+
+## Markdown report structure
+
+### 1. Executive Summary
+
+Include only unsuppressed entries where `kind == "finding"` in the severity table.
+
+```markdown
+# Whitebox Penetration Test Report
+
+## Executive Summary
+
+### Risk Summary
+| Severity | Count |
+|----------|-------|
+| Critical | X |
+| High | X |
+| Medium | X |
+| Low | X |
+| Info | X |
+
+### Hotspots Requiring Follow-up
+- [Title] ([file:line])
+```
+
+### 2. Detailed Findings
+
+For each unsuppressed `finding`:
+- ID / stable key
+- Severity / verdict / confidence
+- File / line / type / CWE
+- Evidence block from `evidence`
+- Remediation and verification notes
+
+### 3. Hotspots
+
+List unsuppressed `hotspot` entries separately. Do not merge them into severity totals.
+
+### 4. Coverage and Workflow
+
+Include:
+- files scanned / skipped
+- tools used
+- whether diff-aware mode was enabled
+- suppression file used, if any
+
+## JSON output
+
+When `--format json` is used:
+- emit the validated `.claude/findings.json` payload after suppressions are applied
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format json \
+  --suppressions <path> \
+  --output <output_file>
+```
+
+## SARIF output
+
+When `--format sarif` is used:
+- convert `.claude/findings.json` with:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format sarif \
+  --suppressions <path> \
+  --output <output_file>
+```
+
+- only unsuppressed `finding` entries become SARIF results
+- `hotspot` entries stay in JSON/markdown, not SARIF
+
+## HTML output
+
+When `--format html` is used:
+- generate a self-contained interactive HTML report with:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format html \
+  --output security-report.html
+```
+
+- includes: severity donut chart (pure SVG), attack chain graph, sortable findings table, expandable detail cards with evidence timelines and code excerpts, hotspots section, coverage panel
+- dark theme, zero external dependencies, fully self-contained in a single file
+- clickable chain graph nodes scroll to finding detail cards
+- CVSS breakdown bars rendered from vector strings
+- syntax-highlighted code excerpts (Python, JS, Go, Java, PHP, Ruby, Rust, Solidity, C#)
+- `hotspot` entries shown in a separate muted table
+- truncates at 200 findings by default (configurable via `max_findings`)
+
+## PR comment output
+
+When `--format pr-comment` is used:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format pr-comment \
+  --output pr-comment.md
+```
+
+- renders a compact Markdown payload intended for GitHub PR comments
+- includes severity, trust, false-positive risk, and exploitability labels
+- keeps output within the configured PR comment budget by summarizing overflow findings
+
+## Evidence bundle output
+
+When `--format bundle` is used:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format bundle \
+  --suppressions <path> \
+  --output security-evidence/
+```
+
+- `--output` is required and must be a directory path
+- writes `findings.json`, `findings.sarif`, `vex.json`, `attestation.json`, `report.html`, and `README.md`
+- `findings.json` is the validated findings artifact after suppressions
+- `findings.sarif` uses the same SARIF renderer as `--format sarif`
+- `vex.json` contains CycloneDX-style exploitability statements for unsuppressed reportable findings
+- `attestation.json` records scan metadata, tool status, counts, suppressions applied, schema version, generation time, and input artifact digest
+
+## Exit codes
+
+- `0`: report generated and no blocking findings at or above `--fail-on`
+- `1`: invalid input, schema error, or render failure
+- `2`: unsuppressed findings at or above `--fail-on`
+
+## Notes
+
+- `--format md` is the default for human-readable output.
+- `--format json` and `--format sarif` are CI-friendly.
+- Suppressions must be keyed by stable finding key, not file path alone.
+
+## Agent integration
+
+For high-severity findings that need remediations, use `patch-advisor` on the reportable `finding` entries first, not on `hotspot` entries that still lack exploit proof.
