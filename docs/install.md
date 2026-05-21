@@ -37,6 +37,16 @@ claude --plugin-dir ./whitebox-pentest
 npm install @kuzushi/vuln-scout
 ```
 
+## MCP Runtime
+
+Use this local stdio server for MCP hosts that should call VulnScout scanner, report, artifact, and Joern CPG tools directly:
+
+```bash
+python3 vuln-scout/scripts/mcp_server.py
+```
+
+See [MCP integration](mcp.md) for host configuration and tool details.
+
 ## Contributor Symlink
 
 Use this only when developing the plugin locally and you need Claude Code to read live files from a checkout.

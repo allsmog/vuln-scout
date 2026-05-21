@@ -1,6 +1,6 @@
 {
   "name": "@kuzushi/vuln-scout",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "AI-assisted whitebox security review plugin for Claude Code and Kuzushi",
   "type": "module",
   "main": "./kuzushi-module.js",

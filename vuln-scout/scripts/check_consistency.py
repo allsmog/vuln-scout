@@ -136,9 +136,16 @@ def validate() -> list[str]:
     if not schema_path.exists():
         errors.append("shared findings schema is missing")
 
-    for required_script in ("prompt_artifacts.py", "validate_evals.py", "run_prompt_evals.py"):
+    for required_script in ("prompt_artifacts.py", "validate_evals.py", "run_prompt_evals.py", "mcp_server.py"):
         if not (PLUGIN_ROOT / "scripts" / required_script).exists():
             errors.append(f"scripts/{required_script} is missing")
+
+    if not (ROOT / "docs" / "mcp.md").exists():
+        errors.append("docs/mcp.md is missing")
+    if "docs/mcp.md" not in readmes["root"]:
+        errors.append("README.md must link docs/mcp.md")
+    if "vuln-scout/scripts/mcp_server.py" not in _read(ROOT / "docs" / "install.md"):
+        errors.append("docs/install.md must document the MCP server command")
 
     for fragment in ("phases.md", "artifact-contract.md", "safety.md"):
         fragment_path = PLUGIN_ROOT / "references" / "full-audit" / fragment

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added first-class local MCP server with scanner, report, artifact, and Joern CPG tools.
+- Fixed Homebrew Joern JavaScript/Python CPG creation for MCP and CLI workflows.
 - Added deterministic `quick`, `deep`, and `audit` scan profiles.
 - Added bundled offline Semgrep rules for first-run validation and CI smoke scans.
 - Added `doctor.py` for local runtime readiness checks.

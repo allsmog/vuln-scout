@@ -151,6 +151,28 @@ class PathHardeningTests(unittest.TestCase):
 
             self.assertEqual(cache_root, repo.resolve() / ".joern")
 
+    def test_create_cpg_uses_pythonsrc_frontend(self):
+        self.assertEqual(create_cpg.JOERN_LANGUAGE_ARGS["python"], "pythonsrc")
+
+    def test_create_cpg_sets_astgen_bin_for_homebrew_javascript(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            joern_root = root / "joern" / "4.0.540"
+            bin_dir = joern_root / "bin"
+            astgen = joern_root / "libexec" / "frontends" / "jssrc2cpg" / "bin" / "astgen" / "astgen-macos-arm"
+            bin_dir.mkdir(parents=True)
+            astgen.parent.mkdir(parents=True)
+            joern_parse = bin_dir / "joern-parse"
+            joern_parse.write_text("#!/bin/sh\n")
+            astgen.write_text("#!/bin/sh\n")
+            joern_parse.chmod(0o755)
+            astgen.chmod(0o755)
+
+            with mock.patch.object(create_cpg.shutil, "which", return_value=str(joern_parse)):
+                env = create_cpg.joern_environment("javascript")
+
+            self.assertEqual(Path(env.get("ASTGEN_BIN", "")).resolve(), astgen.resolve())
+
     def test_create_cpg_hash_ignores_generated_source_views(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             repo = Path(tmpdir) / "repo"

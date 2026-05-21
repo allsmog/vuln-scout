@@ -10,7 +10,7 @@ Manifest: `vuln-scout/.claude-plugin/plugin.json`
 |---|---|---|
 | `/vuln-scout:full-audit` | stable | `[path]`, `--quick`, `--since-commit`, `--scope`, `--suppressions`, `--fail-on`, `--no-semantic-analysis` |
 | `/vuln-scout:verify` | stable | `<file:line>`, `--type`, `--all-critical`, `--from`, `--json` |
-| `/vuln-scout:report` | stable | `[output_file]`, `--format md|json|sarif|html|bundle`, `--suppressions`, `--fail-on` |
+| `/vuln-scout:report` | stable | `[output_file]`, `--format md|json|sarif|html|pr-comment|bundle`, `--suppressions`, `--fail-on` |
 | `/vuln-scout:scope` | stable | `<path>`, `--list`, `--include`, `--exclude`, `--compress`, `--name` |
 | `/vuln-scout:diff` | stable | `<base-ref>`, `[head-ref]`, `--tools`, `--format`, `--fail-on-regression` |
 
@@ -77,6 +77,10 @@ Audit orchestration also writes:
 
 - `.claude/audit-plan.md`
 - `.claude/review-ledger.json`
+
+## MCP Server
+
+`scripts/mcp_server.py` is the local stdio MCP bridge for scanner, report, artifact, and Joern CPG workflows. It exposes `vulnscout_scan`, `vulnscout_report`, `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, `vulnscout_verify_findings`, `vulnscout_read_artifact`, and `vulnscout_doctor`.
 
 ## Local Development
 

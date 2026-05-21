@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -27,7 +28,7 @@ LANG_EXTENSIONS: dict[str, tuple[str, ...]] = {
 
 JOERN_LANGUAGE_ARGS: dict[str, str | None] = {
     "javascript": None,
-    "python": None,
+    "python": "pythonsrc",
     "go": None,
     "java": None,
     "php": None,
@@ -130,12 +131,48 @@ def create_cpg(source_dir: str, cpg_path: Path, language: str) -> None:
         cmd.extend(["--language", joern_language])
 
     log.info("Creating CPG: %s", " ".join(cmd))
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=600,
+        env=joern_environment(language),
+    )
     if result.returncode != 0:
         raise subprocess.CalledProcessError(
             result.returncode, cmd, result.stdout, result.stderr
         )
     log.info("CPG created: %s (%d bytes)", cpg_path, cpg_path.stat().st_size)
+
+
+def joern_environment(language: str) -> dict[str, str]:
+    """Return environment adjustments for Joern frontend quirks.
+
+    Some Homebrew Joern builds invoke jssrc2cpg from libexec but look for the
+    JavaScript astgen helper under libexec/bin. The helper actually ships under
+    frontends/jssrc2cpg/bin/astgen. Supplying ASTGEN_BIN makes CPG creation work
+    without requiring users to patch their Homebrew install.
+    """
+    env = dict(os.environ)
+    if language != "javascript" or env.get("ASTGEN_BIN"):
+        return env
+
+    joern_parse = shutil.which("joern-parse")
+    if not joern_parse:
+        return env
+    joern_root = Path(joern_parse).resolve().parents[1]
+    candidates = (
+        joern_root / "libexec" / "frontends" / "jssrc2cpg" / "bin" / "astgen" / "astgen-macos-arm",
+        joern_root / "libexec" / "frontends" / "jssrc2cpg" / "bin" / "astgen" / "astgen-macos-x64",
+        joern_root / "libexec" / "frontends" / "jssrc2cpg" / "bin" / "astgen" / "astgen-linux",
+        Path("/opt/homebrew/opt/astgen/bin/astgen"),
+        Path("/usr/local/opt/astgen/bin/astgen"),
+    )
+    for candidate in candidates:
+        if candidate.exists() and os.access(candidate, os.X_OK):
+            env["ASTGEN_BIN"] = str(candidate)
+            break
+    return env
 
 
 def build_source_view(source_dir: str, language: str, source_view: Path) -> None:

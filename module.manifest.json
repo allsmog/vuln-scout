@@ -1,7 +1,7 @@
 {
   "id": "vuln-scout",
   "displayName": "VulnScout Security Review",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "AI-assisted whitebox security review with deterministic quick scans, STRIDE threat modeling, evidence-first findings, and portable reports.",
   "category": "security-review",
   "entry": "./kuzushi-module.js",
