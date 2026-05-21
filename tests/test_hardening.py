@@ -288,7 +288,7 @@ class PathHardeningTests(unittest.TestCase):
     def test_mobile_payment_code_contract_detector_finds_js_bridge_token_flow(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
-            target = root / "com" / "lyft" / "android" / "payment" / "processors" / "services" / "chase" / "js"
+            target = root / "src" / "main" / "java" / "com" / "example" / "checkout" / "webview"
             target.mkdir(parents=True)
             (target / "EncryptionListener.java").write_text(
                 "package demo;\n"
@@ -296,7 +296,7 @@ class PathHardeningTests(unittest.TestCase):
                 "class EncryptionListener {\n"
                 "  @JavascriptInterface\n"
                 "  public void onEncryptionComplete(String a, String b, String c) {\n"
-                "    Object token = new mw3(a, b, c);\n"
+                "    Object token = new CardPaymentToken(a, b, c);\n"
                 "  }\n"
                 "}\n"
             )
@@ -307,6 +307,25 @@ class PathHardeningTests(unittest.TestCase):
         self.assertEqual(findings[0]["type"], "mobile-js-bridge-payment-token")
         self.assertEqual(findings[0]["analysis_style"], "code-contract")
         self.assertEqual(findings[0]["confidence"], "high")
+
+    def test_mobile_payment_code_contract_detector_finds_generic_token_scope_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            target = root / "src" / "main" / "java" / "com" / "example" / "billing"
+            target.mkdir(parents=True)
+            (target / "ClientTokenService.java").write_text(
+                "class ClientTokenService {\n"
+                "  void request() {\n"
+                "    Object p = ExternalPaymentProcessor.PROVIDER_A;\n"
+                "    Object m = PaymentMethodType.WALLET;\n"
+                "  }\n"
+                "}\n"
+            )
+
+            findings = scan_orchestrator.vuln_class_detectors.detect_mobile_payment_code_contracts(root)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["type"], "payment-client-token-scope-mismatch")
 
     def test_semantic_context_reader_rejects_path_escape(self):
         with tempfile.TemporaryDirectory() as tmpdir:

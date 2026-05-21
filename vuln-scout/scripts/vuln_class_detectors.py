@@ -838,8 +838,22 @@ def _line_for(lines: list[str], pattern: str) -> tuple[int, str]:
     return 1, lines[0].strip()[:200] if lines else ""
 
 
+_PAYMENT_CONTEXT = re.compile(
+    r"(?i)(payment|checkout|billing|card|tokeni[sz]e|braintree|stripe|paypal|chase|firstdata|googlepay)"
+)
+_TOKEN_CONSTRUCTOR = re.compile(
+    r"(?i)new\s+(?:[A-Za-z_$][\w$]*Token[A-Za-z_$\w]*|[A-Za-z_$][\w$]*Payment[A-Za-z_$\w]*|mw3)\s*\("
+)
+_PAYMENT_ERROR_TYPES = re.compile(r"(?i)(TokenizerError|PaymentError|CheckoutError|CardError|BillingError)")
+_SCOPE_CONSTANT = re.compile(r"((?:ExternalPaymentProcessor|PaymentMethodType)\.[A-Z0-9_]+)")
+_EXCEPTION_TO_PAYMENT_ERROR = re.compile(
+    r"(?is)new\s+[A-Za-z_$][\w$]*(?:TokenizerError|PaymentError|CheckoutError|CardError|BillingError)"
+    r"\s*\([^;]*getMessage\s*\("
+)
+
+
 def detect_mobile_payment_code_contracts(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
-    """Detect high-signal mobile payment trust-boundary code contracts."""
+    """Detect high-signal Android/mobile payment trust-boundary code contracts."""
     findings: list[dict[str, Any]] = []
     files = file_index.files_with_suffixes({".java"}) if file_index else root.rglob("*.java")
     for path in files:
@@ -847,7 +861,7 @@ def detect_mobile_payment_code_contracts(root: Path, file_index: FileIndex | Non
             continue
         rel = str(path.relative_to(root))
         path_signal = f"{rel} {path}"
-        if "payment" not in path_signal.lower():
+        if not _PAYMENT_CONTEXT.search(path_signal):
             continue
         try:
             text = path.read_text(errors="replace")
@@ -855,15 +869,15 @@ def detect_mobile_payment_code_contracts(root: Path, file_index: FileIndex | Non
             continue
         lines = text.splitlines()
 
-        if "@JavascriptInterface" in text and "new mw3(" in text:
-            line, excerpt = _line_for(lines, r"@JavascriptInterface|new\s+mw3\(")
+        if "@JavascriptInterface" in text and _TOKEN_CONSTRUCTOR.search(text):
+            line, excerpt = _line_for(lines, r"@JavascriptInterface|new\s+[A-Za-z_$][\w$]*\s*\(")
             findings.append(_make_code_contract_finding(
                 "mobile-js-bridge-payment-token",
-                "Payment WebView JavaScript bridge constructs native token object from JS-controlled strings",
+                "Payment WebView JavaScript bridge constructs native token object from JS-controlled values",
                 rel, line, excerpt,
-                "A JavaScriptInterface method receives raw string values from WebView JavaScript and constructs "
-                "the native payment token object without visible validation. Trigger condition: JavaScript running "
-                "in the payment WebView calls the bridge callback with attacker-chosen encryption output fields.",
+                "A JavaScriptInterface method receives values from WebView JavaScript and constructs a native "
+                "payment/token object without visible validation. Trigger condition: JavaScript running in the "
+                "payment WebView calls the bridge callback with attacker-chosen token fields.",
                 "medium",
                 trigger_conditions=[
                     "Reach the payment WebView flow that registers the JavaScriptInterface.",
@@ -881,41 +895,41 @@ def detect_mobile_payment_code_contracts(root: Path, file_index: FileIndex | Non
             ))
 
         if (
-            "ExternalPaymentProcessor.BRAINTREE" in text
-            and "PaymentMethodType.PAYPAL" in text
-            and "braintree" in rel.lower()
+            "ExternalPaymentProcessor." in text
+            and "PaymentMethodType." in text
+            and len({constant.split(".", 1)[0] for constant in _SCOPE_CONSTANT.findall(text)}) >= 2
         ):
-            line, excerpt = _line_for(lines, r"PaymentMethodType\.PAYPAL|ExternalPaymentProcessor\.BRAINTREE")
+            line, excerpt = _line_for(lines, r"PaymentMethodType\.[A-Z0-9_]+|ExternalPaymentProcessor\.[A-Z0-9_]+")
             findings.append(_make_code_contract_finding(
-                "braintree-client-token-scope-mismatch",
-                "Braintree client token request hardcodes PAYPAL scope in payment processor code",
+                "payment-client-token-scope-mismatch",
+                "Payment client-token request hardcodes processor and payment-method scope",
                 rel, line, excerpt,
-                "Braintree API key/token request code pairs ExternalPaymentProcessor.BRAINTREE with "
-                "PaymentMethodType.PAYPAL. Trigger condition: a non-PayPal Braintree payment path reuses this "
-                "client token. The code-level risk is a token-scope mismatch for card/device-data flows.",
+                "Payment API key/token request code hardcodes both a processor enum and payment-method enum. "
+                "Trigger condition: another payment path reuses this client token outside that exact method scope. "
+                "The code-level risk is a token-scope mismatch for card, wallet, or device-data flows.",
                 "medium",
                 trigger_conditions=[
-                    "Call a Braintree card or device-data flow that obtains its token through this service.",
-                    "Observe whether the requested token is scoped for PAYPAL while downstream code performs card/device operations.",
+                    "Call a payment flow that obtains its token through this service.",
+                    "Compare the requested processor/method scope against downstream card, wallet, or device-data operations.",
                 ],
                 impact=(
-                    "Payment-token or fraud-signal flows may run with the wrong processor scope, depending on "
-                    "server-side token validation."
+                    "Payment-token or fraud-signal flows may run with the wrong method scope, depending on "
+                    "server-side token validation and SDK behavior."
                 ),
                 validation_steps=[
-                    "Trace call sites of the token service into Braintree card and data collection classes.",
+                    "Trace call sites of the token service into card, wallet, and data collection classes.",
                     "Confirm server response token scope and downstream SDK behavior.",
-                    "Verify whether card tokenization rejects or accepts a PAYPAL-scoped token.",
+                    "Verify whether downstream payment operations reject or accept a mismatched-scope token.",
                 ],
             ))
 
-        if "new TokenizerError" in text and "getMessage()" in text and "Exception" in text:
+        if _EXCEPTION_TO_PAYMENT_ERROR.search(text) and "Exception" in text:
             line, excerpt = _line_for(lines, r"getMessage\(\)|new\s+TokenizerError")
             findings.append(_make_code_contract_finding(
                 "payment-exception-message-propagation",
-                "Payment exception message is copied into TokenizerError",
+                "Payment exception message is copied into payment error object",
                 rel, line, excerpt,
-                "Payment error handling copies raw exception messages into TokenizerError objects. Trigger "
+                "Payment error handling copies raw exception messages into payment error objects. Trigger "
                 "condition: the payment provider or network stack returns an exception containing sensitive or "
                 "internal response details.",
                 "low",
