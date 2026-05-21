@@ -10,7 +10,7 @@
     "id": "bundle-completeness",
     "input_fixture": "tests/fixtures/artifacts/sample-findings-v1_2_0.json",
     "renderer": "bundle",
-    "expected_bundle_files": ["findings.json", "findings.sarif", "vex.json", "attestation.json", "README.md"],
+    "expected_bundle_files": ["findings.json", "findings.sarif", "vex.json", "attestation.json", "report.html", "README.md"],
     "expected_vex_states": ["affected", "not_affected", "under_investigation"],
     "attestation_must_contain_keys": ["trust_model_summary"]
   },

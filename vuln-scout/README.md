@@ -1,6 +1,6 @@
 # VulnScout Plugin
 
-VulnScout is a Claude Code plugin for whitebox security review. This directory is the plugin root used by `claude --plugin-dir ./vuln-scout/vuln-scout`.
+VulnScout is a Claude Code plugin for whitebox security review. This directory is the canonical plugin root used by `claude --plugin-dir ./vuln-scout` from the repository root.
 
 Manifest: `vuln-scout/.claude-plugin/plugin.json`
 

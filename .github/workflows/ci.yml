@@ -45,10 +45,10 @@ jobs:
         run: python3 vuln-scout/scripts/validate_evals.py
 
       - name: Validate Claude plugin install
-        continue-on-error: true
         run: |
           if command -v claude >/dev/null 2>&1; then
             claude plugin validate ./vuln-scout
+            claude plugin validate ./whitebox-pentest
           else
             echo "Claude CLI unavailable; skipping plugin install validation"
           fi

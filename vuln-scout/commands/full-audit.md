@@ -1243,7 +1243,7 @@ npx repomix --version  # Required for scoping
 ║  ├── .claude/scope-data-export.md                             ║
 ║  ├── .claude/audit-report.md                                  ║
 ║  ├── .claude/findings.json          (machine-readable)        ║
-║  └── .claude/whitebox-pentest-state.json (orchestrator state) ║
+║  └── .claude/vuln-scout-state.json (orchestrator state) ║
 ║                                                                ║
 ║  Top Issues:                                                   ║
 ║  1. Query Injection (query-service/svc/service.go:142)        ║
@@ -1530,7 +1530,7 @@ Check common cross-service vulnerabilities:
 ║  ├── .claude/scope-processor.md                              ║
 ║  ├── .claude/audit-report-polyglot.md                        ║
 ║  ├── .claude/findings.json          (machine-readable)        ║
-║  └── .claude/whitebox-pentest-state.json (orchestrator state) ║
+║  └── .claude/vuln-scout-state.json (orchestrator state) ║
 ║                                                                ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```
@@ -1710,7 +1710,7 @@ For detailed vulnerability hunting in high-risk modules:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:code-reviewer"
+  subagent_type: "vuln-scout:code-reviewer"
   prompt: |
     Review this module for security vulnerabilities:
     - Module: [module_path]
@@ -1724,7 +1724,7 @@ For dynamic testing guidance after vulnerabilities are found:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:local-tester"
+  subagent_type: "vuln-scout:local-tester"
   prompt: |
     Guide dynamic testing for:
     - Finding: [vulnerability description]
@@ -1738,7 +1738,7 @@ Use Task tool with:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:poc-developer"
+  subagent_type: "vuln-scout:poc-developer"
   prompt: |
     Develop PoC for:
     - Vulnerability: [type and description]
@@ -1753,7 +1753,7 @@ For remediation recommendations:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:patch-advisor"
+  subagent_type: "vuln-scout:patch-advisor"
   prompt: |
     Recommend fixes for:
     - Finding: [vulnerability]
@@ -1767,7 +1767,7 @@ For autonomous exploration of novel attack vectors beyond pattern matching:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:attack-researcher"
+  subagent_type: "vuln-scout:attack-researcher"
   prompt: |
     Research attack vectors for:
     - Threat model: [.claude/threat-model.md]
@@ -1874,7 +1874,7 @@ Use `APPROVED`, `CHANGES_REQUESTED`, and `UNRESOLVED` exactly. When a subject is
 
 ### Step 7c: Machine-Readable State Update (MANDATORY)
 
-Alongside `.claude/findings.json`, write `.claude/whitebox-pentest-state.json` so orchestrators can query audit progress without parsing markdown:
+Alongside `.claude/findings.json`, write `.claude/vuln-scout-state.json` so orchestrators can query audit progress without parsing markdown:
 
 ```json
 {
@@ -1904,7 +1904,7 @@ Alongside `.claude/findings.json`, write `.claude/whitebox-pentest-state.json` s
     "audit_report": ".claude/audit-report.md",
     "findings_json": ".claude/findings.json",
     "review_ledger": ".claude/review-ledger.json",
-    "state_json": ".claude/whitebox-pentest-state.json"
+    "state_json": ".claude/vuln-scout-state.json"
   },
   "review_state": {
     "audit_plan": "APPROVED|CHANGES_REQUESTED|UNRESOLVED|pending",
@@ -1934,7 +1934,7 @@ cat .claude/findings.json
 - [ ] Generated `.claude/audit-report.md` (markdown report)
 - [ ] Generated `.claude/findings.json` (JSON for automation)
 - [ ] Generated `.claude/review-ledger.json` (machine-readable review history)
-- [ ] Generated `.claude/whitebox-pentest-state.json` (machine-readable state)
+- [ ] Generated `.claude/vuln-scout-state.json` (machine-readable state)
 - [ ] Verified JSON is valid: `python3 -c "import json; json.load(open('.claude/findings.json'))"`
 - [ ] If `--json` flag: emitted `.claude/findings.json` contents to stdout
 

@@ -39,7 +39,7 @@ _LANG_EXTENSIONS = {
 
 
 # The scanner's own plugin directory name -- used to skip self-referential scans
-_PLUGIN_DIR_NAMES = frozenset({"whitebox-pentest", ".claude-plugin"})
+_PLUGIN_DIR_NAMES = frozenset({"vuln-scout", "whitebox-pentest", ".claude-plugin"})
 
 
 def _is_excluded(path: Path) -> bool:

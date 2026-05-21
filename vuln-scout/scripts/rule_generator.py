@@ -60,7 +60,7 @@ def _lang_extensions(languages: list[str]) -> list[str]:
     return exts
 
 
-_PLUGIN_DIR_NAMES = frozenset({"whitebox-pentest", ".claude-plugin"})
+_PLUGIN_DIR_NAMES = frozenset({"vuln-scout", "whitebox-pentest", ".claude-plugin"})
 
 
 def _is_excluded(path: Path) -> bool:

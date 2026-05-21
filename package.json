@@ -29,7 +29,9 @@
     "vuln-scout/scripts/joern/*.sc",
     "vuln-scout/scripts/tool_runners/*.py",
     "vuln-scout/skills/**",
-    "vuln-scout/README.md"
+    "vuln-scout/README.md",
+    "whitebox-pentest/.claude-plugin/**",
+    "whitebox-pentest/commands/**"
   ],
   "license": "MIT",
   "repository": {

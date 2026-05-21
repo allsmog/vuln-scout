@@ -216,7 +216,7 @@ cpg.call.name("query").argument.l
 
 ## Integration with Plugin
 
-The whitebox-pentest plugin uses Joern via:
+VulnScout uses Joern via:
 - `scripts/joern/*.sc` - Verification scripts
 - `.joern/` - CPG cache directory
 - `/verify` command - Automated verification

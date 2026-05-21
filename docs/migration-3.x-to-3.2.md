@@ -11,7 +11,7 @@ Update hardcoded command references:
 /vuln-scout:full-audit
 ```
 
-Deprecated `/whitebox-pentest:*` shim files remain for one release and print a rename notice.
+Deprecated `/whitebox-pentest:*` shim files remain for one release and print a rename notice. Marketplace and npm package installs include a small `whitebox-pentest` compatibility plugin root that contains only those shims.
 
 ## Plugin Directory
 
@@ -25,7 +25,13 @@ vuln-scout/
 For local testing, prefer:
 
 ```bash
-claude --plugin-dir ./vuln-scout/vuln-scout
+claude --plugin-dir ./vuln-scout
+```
+
+To test the deprecated aliases directly:
+
+```bash
+claude --plugin-dir ./whitebox-pentest
 ```
 
 ## Marketplace Install

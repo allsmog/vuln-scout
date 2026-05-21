@@ -55,7 +55,7 @@ Primary paths are documented in [docs/install.md](docs/install.md).
 
 ```bash
 claude plugin install vuln-scout
-claude --plugin-dir ./vuln-scout/vuln-scout
+claude --plugin-dir ./vuln-scout
 npm install @kuzushi/vuln-scout
 ```
 
@@ -131,7 +131,7 @@ The plugin ships 27 knowledge skills plus 5 task skills under `vuln-scout/skills
 
 ## Migration
 
-Users upgrading from 3.x should read [docs/migration-3.x-to-3.2.md](docs/migration-3.x-to-3.2.md). `/whitebox-pentest:*` aliases remain as deprecated shim files for one release.
+Users upgrading from 3.x should read [docs/migration-3.x-to-3.2.md](docs/migration-3.x-to-3.2.md). `/whitebox-pentest:*` aliases remain as deprecated shim files for one release and are shipped as a legacy plugin root.
 
 ## License
 

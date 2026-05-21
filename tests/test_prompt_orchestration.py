@@ -50,7 +50,7 @@ class PromptArtifactTests(unittest.TestCase):
                 "audit_report": ".claude/audit-report.md",
                 "findings_json": ".claude/findings.json",
                 "review_ledger": ".claude/review-ledger.json",
-                "state_json": ".claude/whitebox-pentest-state.json",
+                "state_json": ".claude/vuln-scout-state.json",
             },
             "review_state": {
                 "audit_plan": "APPROVED",

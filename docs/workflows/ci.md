@@ -20,11 +20,11 @@ jobs:
           python-version: "3.12"
       - run: python3 vuln-scout/scripts/doctor.py --strict
       - run: python3 vuln-scout/scripts/scan_orchestrator.py . --profile quick --format sarif --output findings.sarif --fail-on high
-      - run: python3 vuln-scout/scripts/report.py .claude/findings.json --format bundle --output evidence-bundle.zip
+      - run: python3 vuln-scout/scripts/report.py .claude/findings.json --format bundle --output evidence-bundle
       - uses: actions/upload-artifact@v4
         with:
           name: vuln-scout-evidence
           path: |
             findings.sarif
-            evidence-bundle.zip
+            evidence-bundle/
 ```

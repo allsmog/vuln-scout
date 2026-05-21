@@ -23,7 +23,7 @@ _EXCLUDED_DIRS = frozenset({
     "test", "tests", "__tests__", "fixtures",
 })
 
-_PLUGIN_DIR_NAMES = frozenset({"whitebox-pentest", ".claude-plugin"})
+_PLUGIN_DIR_NAMES = frozenset({"vuln-scout", "whitebox-pentest", ".claude-plugin"})
 
 
 def _is_excluded(path: Path) -> bool:

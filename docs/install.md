@@ -11,7 +11,13 @@ claude plugin install vuln-scout
 ```bash
 git clone https://github.com/allsmog/vuln-scout
 cd vuln-scout
-claude --plugin-dir ./vuln-scout/vuln-scout
+claude --plugin-dir ./vuln-scout
+```
+
+The canonical local plugin root is `./vuln-scout` from the repository root. To test one-release deprecated aliases locally, load the compatibility plugin root:
+
+```bash
+claude --plugin-dir ./whitebox-pentest
 ```
 
 ## Kuzushi Runtime

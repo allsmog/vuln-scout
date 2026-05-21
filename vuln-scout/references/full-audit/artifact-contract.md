@@ -6,7 +6,7 @@ The full-audit workflow must write:
 - `.claude/review-ledger.json`
 - `.claude/audit-report.md`
 - `.claude/findings.json`
-- `.claude/whitebox-pentest-state.json`
+- `.claude/vuln-scout-state.json`
 
 Findings must follow `vuln-scout/references/findings.schema.json`.
 Only unsuppressed entries with `kind: "finding"` affect severity totals,

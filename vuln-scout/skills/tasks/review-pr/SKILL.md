@@ -16,13 +16,13 @@ Use this task skill when the user asks to review this PR, scan a PR, run a diff 
 5. Call `false-positive-verifier` for high-impact or ambiguous results.
 6. Trigger `poc-safety-check` before any dynamic validation or PoC work.
 7. Render `/vuln-scout:report --format md` for the PR comment payload.
-8. Optionally render `/vuln-scout:report --format bundle` for evidence handoff.
+8. Optionally render `/vuln-scout:report --format bundle --output evidence-bundle` for evidence handoff.
 
 ## Produces
 
 - `.claude/diff-findings.json`
 - `pr-comment.md`
-- optional `bundle.zip`
+- optional `evidence-bundle/`
 
 ## When NOT To Trigger
 

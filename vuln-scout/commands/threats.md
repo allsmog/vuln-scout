@@ -665,7 +665,7 @@ For comprehensive architecture mapping:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:app-mapper"
+  subagent_type: "vuln-scout:app-mapper"
   prompt: |
     Map the architecture of this codebase:
     - Path: [target_path]
@@ -679,7 +679,7 @@ For automated STRIDE analysis:
 
 ```
 Use Task tool with:
-  subagent_type: "whitebox-pentest:threat-modeler"
+  subagent_type: "vuln-scout:threat-modeler"
   prompt: |
     Perform STRIDE threat modeling on:
     - Component: [component_name]

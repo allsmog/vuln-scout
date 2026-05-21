@@ -59,6 +59,8 @@ def validate() -> list[str]:
         "skills": _count_skills(PLUGIN_ROOT / "skills"),
         "hooks": _count_files(PLUGIN_ROOT / "hooks"),
     }
+    canonical_commands = {path.name for path in (PLUGIN_ROOT / "commands").glob("*.md")}
+    legacy_commands = {path.name for path in (ROOT / "whitebox-pentest" / "commands").glob("*.md")}
 
     readmes = {
         "root": _read(ROOT / "README.md"),
@@ -67,12 +69,14 @@ def validate() -> list[str]:
         "agents": _read(ROOT / "AGENTS.md"),
     }
     manifest = _json(PLUGIN_ROOT / ".claude-plugin" / "plugin.json")
+    legacy_manifest = _json(ROOT / "whitebox-pentest" / ".claude-plugin" / "plugin.json")
     package = _json(ROOT / "package.json")
     module_manifest = _json(ROOT / "module.manifest.json")
     package_version = package.get("version")
     for label, version in (
         ("module.manifest.json", module_manifest.get("version")),
         ("vuln-scout/.claude-plugin/plugin.json", manifest.get("version")),
+        ("whitebox-pentest/.claude-plugin/plugin.json", legacy_manifest.get("version")),
     ):
         if version != package_version:
             errors.append(f"{label} version {version!r} must match package.json {package_version!r}")
@@ -93,6 +97,10 @@ def validate() -> list[str]:
     expected_counts = {"commands": 14, "agents": 8, "skills": counts["skills"]}
     if counts["commands"] != expected_counts["commands"]:
         errors.append(f"commands count drifted: expected {expected_counts['commands']}, got {counts['commands']}")
+    if legacy_commands != canonical_commands:
+        missing = sorted(canonical_commands - legacy_commands)
+        extra = sorted(legacy_commands - canonical_commands)
+        errors.append(f"deprecated whitebox-pentest shims must mirror command names; missing={missing}, extra={extra}")
     if counts["agents"] != expected_counts["agents"]:
         errors.append(f"agents count drifted: expected {expected_counts['agents']}, got {counts['agents']}")
     # Skills count is dynamic -- validated against filesystem, not a hardcoded number.
@@ -116,6 +124,8 @@ def validate() -> list[str]:
         errors.append("AGENTS.md should describe the plugin as Claude-first")
     if "hotspot-aware findings" not in manifest.get("description", ""):
         errors.append("plugin.json description should mention hotspot-aware findings")
+    if legacy_manifest.get("name") != "whitebox-pentest":
+        errors.append("legacy whitebox-pentest plugin manifest must keep the deprecated command namespace")
 
     for readme_key in ("root", "plugin", "claude", "agents"):
         for artifact_name in ("audit-plan.md", "review-ledger.json"):
@@ -146,6 +156,14 @@ def validate() -> list[str]:
     ):
         if not (PLUGIN_ROOT / "evals" / eval_artifact).exists():
             errors.append(f"evals/{eval_artifact} is missing")
+
+    package_files = set(package.get("files", []))
+    for required_package_path in (
+        "whitebox-pentest/.claude-plugin/**",
+        "whitebox-pentest/commands/**",
+    ):
+        if required_package_path not in package_files:
+            errors.append(f"package.json must ship deprecated alias plugin path: {required_package_path}")
 
     if not (PLUGIN_ROOT / "scripts" / "org_memory_compiler.py").exists():
         errors.append("scripts/org_memory_compiler.py is missing")

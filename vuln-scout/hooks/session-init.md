@@ -1,6 +1,6 @@
 ---
 name: session-init
-description: Initialize whitebox pentest session and check for previous state
+description: Initialize VulnScout session and check for previous state
 event: SessionStart
 ---
 
@@ -11,14 +11,15 @@ On session start, check for existing audit state and provide context.
 ## State Detection
 
 Check for existing audit state. Two state files indicate prior work:
-- `.claude/whitebox-pentest-state.json` — machine-readable JSON state (primary, written by full-audit)
+- `.claude/vuln-scout-state.json` — machine-readable JSON state (primary, written by full-audit)
+- `.claude/whitebox-pentest-state.json` — legacy state path from 3.x, read only for migration context
 - `.claude/audit-report.md` — human-readable audit report (written by full-audit)
 - `.claude/audit-plan.md` / `.claude/review-ledger.json` — persisted orchestration artifacts for audit planning and review history
 
 Check for state files to determine if a prior session exists:
 
 ```bash
-ls .claude/whitebox-pentest-state.json .claude/audit-report.md 2>/dev/null
+ls .claude/vuln-scout-state.json .claude/whitebox-pentest-state.json .claude/audit-report.md 2>/dev/null
 ```
 
 ### If state file exists:
@@ -104,7 +105,7 @@ Type `/vuln-scout:full-audit` to begin a structured security assessment.
 
 ## State File Format
 
-### Machine-Readable State (`.claude/whitebox-pentest-state.json`)
+### Machine-Readable State (`.claude/vuln-scout-state.json`)
 
 ```json
 {
@@ -136,7 +137,7 @@ Type `/vuln-scout:full-audit` to begin a structured security assessment.
     "audit_report": ".claude/audit-report.md",
     "findings_json": ".claude/findings.json",
     "review_ledger": ".claude/review-ledger.json",
-    "state_json": ".claude/whitebox-pentest-state.json"
+    "state_json": ".claude/vuln-scout-state.json"
   },
   "review_state": {
     "audit_plan": "APPROVED|CHANGES_REQUESTED|UNRESOLVED|pending",

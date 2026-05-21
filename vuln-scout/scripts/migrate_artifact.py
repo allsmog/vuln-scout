@@ -106,6 +106,19 @@ def build_trust_metadata(finding: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _merge_trust_metadata(existing: Any, fallback: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(existing, dict):
+        return fallback
+
+    merged = copy.deepcopy(fallback)
+    for key, value in existing.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key].update(value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def migrate_to_1_2_0(artifact: dict[str, Any]) -> dict[str, Any]:
     if (
         artifact.get("schema_version") == TARGET_SCHEMA_VERSION
@@ -116,7 +129,10 @@ def migrate_to_1_2_0(artifact: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(artifact)
     migrated["schema_version"] = TARGET_SCHEMA_VERSION
     for finding in migrated.get("findings", []):
-        finding.setdefault("trust_metadata", build_trust_metadata(finding))
+        finding["trust_metadata"] = _merge_trust_metadata(
+            finding.get("trust_metadata"),
+            build_trust_metadata(finding),
+        )
     return migrated
 
 

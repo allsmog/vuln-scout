@@ -21,5 +21,5 @@ Render the Markdown payload for a PR comment:
 For review handoff, package the evidence bundle after verification:
 
 ```text
-/vuln-scout:report --format bundle
+/vuln-scout:report --format bundle --output evidence-bundle
 ```

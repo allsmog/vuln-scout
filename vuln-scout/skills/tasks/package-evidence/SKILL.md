@@ -12,12 +12,12 @@ Use this task skill when the user asks to package evidence, export a bundle, cre
 1. Confirm `.claude/findings.json` exists and validates.
 2. Run `/vuln-scout:report --format sarif`.
 3. Run `/vuln-scout:report --format html`.
-4. Run `/vuln-scout:report --format bundle`.
+4. Run `/vuln-scout:report --format bundle --output evidence-bundle`.
 5. Confirm the bundle contains `findings.json`, `findings.sarif`, `vex.json`, `attestation.json`, `report.html`, and `README.md`.
 
 ## Produces
 
-- `evidence-bundle.zip`
+- `evidence-bundle/`
 
 ## When NOT To Trigger
 

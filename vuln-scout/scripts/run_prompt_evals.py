@@ -160,7 +160,7 @@ def _score_verdict_quality(workspace: Path, case: dict[str, Any]) -> tuple[float
             details["matched_subject_types"] = matched_subject_types
             scores.append(len(matched_subject_types) / len(expected_subject_types))
 
-    state_path = workspace / ".claude" / "whitebox-pentest-state.json"
+    state_path = workspace / ".claude" / "vuln-scout-state.json"
     if state_path.exists():
         state_errors = prompt_artifacts.validate_orchestration_state(json.loads(state_path.read_text()))
         details["state_errors"] = state_errors

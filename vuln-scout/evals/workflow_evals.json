@@ -8,7 +8,7 @@
       ".claude/audit-plan.md",
       ".claude/review-ledger.json",
       ".claude/findings.json",
-      ".claude/whitebox-pentest-state.json"
+      ".claude/vuln-scout-state.json"
     ],
     "required_sections": {
       ".claude/audit-plan.md": [

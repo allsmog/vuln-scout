@@ -16,7 +16,7 @@ Use this task skill when the user asks to start a security audit, audit this rep
 5. Run `/vuln-scout:scan --profile quick` first; use `deep` only when optional analyzers are installed or requested.
 6. Call `code-reviewer` on prioritized findings.
 7. Run `/vuln-scout:verify` per finding that needs confirmation.
-8. Finish with `/vuln-scout:report --format bundle`.
+8. Finish with `/vuln-scout:report --format bundle --output evidence-bundle`.
 
 ## Produces
 
@@ -24,7 +24,7 @@ Use this task skill when the user asks to start a security audit, audit this rep
 - `.claude/review-ledger.json`
 - `.claude/findings.json`
 - `report.html`
-- `bundle.zip`
+- `evidence-bundle/`
 
 ## When NOT To Trigger
 

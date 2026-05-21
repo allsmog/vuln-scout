@@ -360,8 +360,14 @@ class PackageContentsTests(unittest.TestCase):
         pack = json.loads(result.stdout)[0]
         paths = {entry["path"] for entry in pack["files"]}
 
+        self.assertIn(".claude-plugin/marketplace.json", paths)
+        self.assertIn("vuln-scout/.claude-plugin/plugin.json", paths)
         self.assertIn("vuln-scout/rules/vuln-scout-local.yml", paths)
         self.assertIn("vuln-scout/scripts/doctor.py", paths)
+        self.assertIn("whitebox-pentest/.claude-plugin/plugin.json", paths)
+        self.assertIn("whitebox-pentest/commands/full-audit.md", paths)
+        self.assertIn("whitebox-pentest/commands/org-memory-compile.md", paths)
+        self.assertIn("whitebox-pentest/commands/report.md", paths)
         self.assertIn("demo/vulnerable-app/README.md", paths)
         self.assertIn("docs/feature-maturity.md", paths)
         self.assertIn("docs/ci/github-actions.yml", paths)

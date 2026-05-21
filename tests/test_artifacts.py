@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,12 +16,15 @@ FIXTURES_DIR = ROOT / "tests" / "fixtures" / "artifacts"
 def load_module(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     assert spec.loader is not None
     spec.loader.exec_module(module)
     return module
 
 
+prompt_artifacts = load_module("prompt_artifacts", SCRIPTS_DIR / "prompt_artifacts.py")
 artifact_utils = load_module("artifact_utils", SCRIPTS_DIR / "artifact_utils.py")
+migrate_artifact = load_module("migrate_artifact", SCRIPTS_DIR / "migrate_artifact.py")
 deduplicate_findings = artifact_utils.deduplicate_findings
 
 
@@ -116,6 +120,34 @@ class ArtifactTests(unittest.TestCase):
         del artifact["schema_version"]
         errors = artifact_utils.validate_findings_artifact(artifact)
         self.assertTrue(len(errors) > 0, "Should fail when schema_version is missing")
+
+    def test_malformed_trust_metadata_fails_validation(self) -> None:
+        artifact = json.loads((FIXTURES_DIR / "sample-findings-v1_2_0.json").read_text())
+        artifact["findings"][0]["trust_metadata"] = {
+            "provenance": {"origin": "impossible", "contributors": ["deterministic_tool"]},
+            "exploitability_status": "confirmed",
+            "false_positive_risk": {"level": "low"},
+        }
+
+        errors = artifact_utils.validate_findings_artifact(artifact)
+
+        self.assertTrue(any("trust_metadata.provenance.origin" in error for error in errors))
+
+    def test_migration_backfills_partial_trust_metadata(self) -> None:
+        artifact = json.loads((FIXTURES_DIR / "sample-findings.json").read_text())
+        artifact["findings"][0]["trust_metadata"] = {
+            "provenance": {"origin": "human_review"},
+            "confidence_reason": "Preserve reviewer-provided context.",
+        }
+
+        migrated = migrate_artifact.migrate_to_1_2_0(artifact)
+        trust = migrated["findings"][0]["trust_metadata"]
+
+        self.assertEqual(trust["provenance"]["origin"], "human_review")
+        self.assertIn("contributors", trust["provenance"])
+        self.assertIn("exploitability_status", trust)
+        self.assertIn("false_positive_risk", trust)
+        self.assertEqual(artifact_utils.validate_findings_artifact(migrated), [])
 
     def test_stable_key_deterministic(self) -> None:
         finding = {
