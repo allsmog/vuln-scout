@@ -146,6 +146,40 @@ def summarize_findings(findings: list[dict[str, Any]]) -> dict[str, int]:
     return summary
 
 
+def summarize_source_tool(findings: list[dict[str, Any]], fallback_tools: list[str] | None = None) -> str:
+    """Return a top-level source tool value based on actual finding producers."""
+    finding_sources = sorted({
+        str(finding.get("source_tool"))
+        for finding in findings
+        if finding.get("source_tool")
+    })
+    if len(finding_sources) == 1:
+        return finding_sources[0]
+    if len(finding_sources) > 1:
+        return "multi"
+    fallback_tools = fallback_tools or []
+    if len(fallback_tools) == 1:
+        return fallback_tools[0]
+    if fallback_tools:
+        return "multi"
+    return "none"
+
+
+def normalize_artifact_metadata(artifact: dict[str, Any]) -> dict[str, Any]:
+    """Normalize derived artifact metadata without changing finding content."""
+    updated = copy.deepcopy(artifact)
+    findings = list(updated.get("findings") or [])
+    updated["summary"] = summarize_findings(findings)
+    coverage = updated.get("coverage")
+    fallback_tools = []
+    if isinstance(coverage, dict):
+        fallback_tools = list(coverage.get("tools_used") or [])
+    source_tool = summarize_source_tool(findings, fallback_tools)
+    if source_tool != "none":
+        updated["source_tool"] = source_tool
+    return updated
+
+
 def parse_suppressions(path: str | Path | None) -> dict[str, str]:
     if path is None:
         return {}

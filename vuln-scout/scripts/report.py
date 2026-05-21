@@ -12,6 +12,7 @@ from artifact_utils import (
     apply_suppressions,
     dump_json,
     load_artifact,
+    normalize_artifact_metadata,
     parse_suppressions,
     to_sarif,
     validate_findings_artifact,
@@ -124,6 +125,7 @@ def main() -> int:
             f"info: migrated artifact from {original_schema_version} to 1.2.0 in memory",
             file=sys.stderr,
         )
+    artifact = normalize_artifact_metadata(artifact)
     artifact = _attach_maturity(artifact)
     suppressions = parse_suppressions(args.suppressions)
     if suppressions:

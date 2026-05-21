@@ -21,6 +21,7 @@ from artifact_utils import (
     SEVERITY_PRIORITY,
     stable_key_for,
     summarize_findings,
+    summarize_source_tool,
     deduplicate_findings,
     apply_suppressions,
     parse_suppressions,
@@ -529,16 +530,7 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
         for finding in findings
         if finding.get("source_tool")
     })
-    if len(finding_sources) == 1:
-        source_tool = finding_sources[0]
-    elif len(finding_sources) > 1:
-        source_tool = "multi"
-    elif len(tools_used) == 1:
-        source_tool = tools_used[0]
-    elif tools_used:
-        source_tool = "multi"
-    else:
-        source_tool = "none"
+    source_tool = summarize_source_tool(findings, tools_used)
     coverage_tools = sorted(set(tools_used) | set(finding_sources))
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,

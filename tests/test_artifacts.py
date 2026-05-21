@@ -44,6 +44,24 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(updated["summary"]["high"], 0)
         self.assertEqual(updated["summary"]["total_hotspots"], 1)
 
+    def test_normalize_artifact_metadata_uses_finding_sources(self) -> None:
+        artifact = {
+            "source_tool": "semgrep",
+            "coverage": {"tools_used": ["semgrep"]},
+            "findings": [
+                {
+                    "source_tool": "api-spec-parser",
+                    "kind": "finding",
+                    "severity": "medium",
+                }
+            ],
+        }
+
+        updated = artifact_utils.normalize_artifact_metadata(artifact)
+
+        self.assertEqual(updated["source_tool"], "api-spec-parser")
+        self.assertEqual(updated["summary"]["total_findings"], 1)
+
     def test_sarif_conversion_emits_only_reportable_findings(self) -> None:
         artifact = json.loads((FIXTURES_DIR / "sample-findings.json").read_text())
         sarif = artifact_utils.to_sarif(artifact)
