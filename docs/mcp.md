@@ -15,6 +15,7 @@ python3 -m pip install semgrep
 Optional analyzer tools:
 
 - Joern: required for `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, and CPG verification.
+- CodeGraph: optional sidecar for indexed code context, symbol search, and affected-file analysis.
 - CodeQL, Slither, Trivy, Checkov, gitleaks/truffleHog: used through `vulnscout_scan` when installed.
 
 ## Server Command
@@ -47,6 +48,10 @@ Example MCP config:
 - `vulnscout_joern_query` runs a bounded raw local Joern CPGQL snippet against a CPG.
 - `vulnscout_joern_discover` runs VulnScout's Joern discovery queries.
 - `vulnscout_verify_findings` batch-verifies findings with Joern.
+- `vulnscout_codegraph_status` reports optional CodeGraph index health.
+- `vulnscout_codegraph_search` searches indexed symbols before focused review.
+- `vulnscout_codegraph_context` builds task-oriented code context.
+- `vulnscout_codegraph_affected` finds files or tests affected by changed source files.
 - `vulnscout_read_artifact` reads safe VulnScout artifacts from a workspace.
 
 All path arguments are resolved inside the target workspace. Paths that escape
@@ -128,3 +133,23 @@ removed for host display. Raw stdout/stderr remain available for debugging.
 
 Raw CPGQL executes locally with the privileges of the MCP host process. Use it
 for trusted workspaces and reviewer-controlled analysis.
+
+## CodeGraph Sidecar
+
+CodeGraph is optional and local. VulnScout treats it as a code-intelligence
+sidecar for exploration, impact analysis, and incremental invalidation. It does
+not verify exploitability or upgrade findings to verified status; Joern remains
+the CPG/data-flow verifier.
+
+Install and initialize CodeGraph separately:
+
+```bash
+npm install -g @colbymchenry/codegraph
+cd /path/to/repo
+codegraph init -i
+```
+
+When `.codegraph/` exists, VulnScout records CodeGraph status in
+`tool_status.by_tool.codegraph`, can use `codegraph affected` to broaden
+incremental invalidation, and exposes the CodeGraph bridge tools above through
+MCP.

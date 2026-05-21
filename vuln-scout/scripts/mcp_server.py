@@ -20,6 +20,7 @@ from typing import Any, Callable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import create_cpg
+import codegraph_adapter
 import doctor
 from artifact_utils import dump_json, load_artifact, validate_findings_artifact
 from safe_paths import resolve_within_root
@@ -153,6 +154,60 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "timeout": {"type": "integer", "description": "Per-finding timeout in seconds.", "default": 120},
             },
             "required": ["target"],
+        },
+    },
+    {
+        "name": "vulnscout_codegraph_status",
+        "description": "Return optional CodeGraph index health for a workspace. CodeGraph is a code-intelligence sidecar, not a verifier.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": _schema_string("Workspace directory."),
+                "include_raw": _schema_bool("Include raw status text when JSON output is unavailable."),
+            },
+            "required": ["target"],
+        },
+    },
+    {
+        "name": "vulnscout_codegraph_search",
+        "description": "Search indexed CodeGraph symbols by name/kind to find code context before security review.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": _schema_string("Workspace directory."),
+                "query": _schema_string("Symbol or text query."),
+                "kind": _schema_string("Optional symbol kind filter."),
+                "limit": {"type": "integer", "description": "Maximum results. Defaults to 20.", "default": 20},
+            },
+            "required": ["target", "query"],
+        },
+    },
+    {
+        "name": "vulnscout_codegraph_context",
+        "description": "Build CodeGraph task context for audit planning or focused source review.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": _schema_string("Workspace directory."),
+                "task": _schema_string("Review task or question."),
+                "max_nodes": {"type": "integer", "description": "Maximum graph nodes. Defaults to 20.", "default": 20},
+                "format": _enum(["markdown", "json"], "Output format."),
+            },
+            "required": ["target", "task"],
+        },
+    },
+    {
+        "name": "vulnscout_codegraph_affected",
+        "description": "Use CodeGraph to find files or tests affected by changed source files.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": _schema_string("Workspace directory."),
+                "files": {"type": "array", "items": {"type": "string"}, "description": "Changed files relative to the workspace."},
+                "depth": {"type": "integer", "description": "Maximum dependency traversal depth. Defaults to 5.", "default": 5},
+                "filter": _schema_string("Optional glob filter, for example tests/**/*.py."),
+            },
+            "required": ["target", "files"],
         },
     },
     {
@@ -489,6 +544,50 @@ def tool_vulnscout_verify_findings(args: dict[str, Any]) -> dict[str, Any]:
     return {"ok": True, "findings": verified, "count": len(verified)}
 
 
+def tool_vulnscout_codegraph_status(args: dict[str, Any]) -> dict[str, Any]:
+    workspace = _workspace(args.get("target"))
+    return codegraph_adapter.status(workspace, include_raw=bool(args.get("include_raw", False)))
+
+
+def tool_vulnscout_codegraph_search(args: dict[str, Any]) -> dict[str, Any]:
+    workspace = _workspace(args.get("target"))
+    query = str(args.get("query") or "").strip()
+    if not query:
+        raise McpError("query is required")
+    return codegraph_adapter.search(
+        workspace,
+        query,
+        kind=args.get("kind"),
+        limit=max(1, min(int(args.get("limit") or 20), 100)),
+    )
+
+
+def tool_vulnscout_codegraph_context(args: dict[str, Any]) -> dict[str, Any]:
+    workspace = _workspace(args.get("target"))
+    task = str(args.get("task") or "").strip()
+    if not task:
+        raise McpError("task is required")
+    return codegraph_adapter.context(
+        workspace,
+        task,
+        max_nodes=max(1, min(int(args.get("max_nodes") or 20), 100)),
+        fmt=str(args.get("format") or "markdown"),
+    )
+
+
+def tool_vulnscout_codegraph_affected(args: dict[str, Any]) -> dict[str, Any]:
+    workspace = _workspace(args.get("target"))
+    files = [str(path) for path in args.get("files", []) if str(path).strip()]
+    for file_path in files:
+        _safe_path(workspace, file_path, must_exist=False)
+    return codegraph_adapter.affected(
+        workspace,
+        files,
+        depth=max(1, min(int(args.get("depth") or 5), 20)),
+        filter_glob=args.get("filter"),
+    )
+
+
 def tool_vulnscout_read_artifact(args: dict[str, Any]) -> dict[str, Any]:
     workspace = _workspace(args.get("target"))
     artifact = str(args.get("artifact"))
@@ -520,6 +619,10 @@ TOOLS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "vulnscout_joern_query": tool_vulnscout_joern_query,
     "vulnscout_joern_discover": tool_vulnscout_joern_discover,
     "vulnscout_verify_findings": tool_vulnscout_verify_findings,
+    "vulnscout_codegraph_status": tool_vulnscout_codegraph_status,
+    "vulnscout_codegraph_search": tool_vulnscout_codegraph_search,
+    "vulnscout_codegraph_context": tool_vulnscout_codegraph_context,
+    "vulnscout_codegraph_affected": tool_vulnscout_codegraph_affected,
     "vulnscout_read_artifact": tool_vulnscout_read_artifact,
 }
 

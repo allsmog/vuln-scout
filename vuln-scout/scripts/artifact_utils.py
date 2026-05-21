@@ -2,9 +2,17 @@
 from __future__ import annotations
 
 import copy
+import fnmatch
 import hashlib
 import json
 import re as _re_module
+
+# Suppression rule key prefixes — extracted as constants to prevent
+# typos across the multiple sites that parse them, and to make the
+# rule-type vocabulary discoverable in one place.
+SUPP_PREFIX_FILE = "file:"
+SUPP_PREFIX_SEVERITY = "severity:"
+SUPP_PREFIX_CHAIN_PATTERN = "chain_pattern:"
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +30,13 @@ SCHEMA_VERSION = "1.2.0"
 VALID_SCHEMA_VERSIONS = {"1.0.0", "1.1.0", "1.2.0"}
 VALID_KINDS = {"finding", "hotspot"}
 VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
+# Severity priority used for sorting (worst-first) and floor comparisons.
+# Shared across artifact_utils, chain_detector, and mobile_scan so a
+# future severity-tier change only needs one edit.
+SEVERITY_RANK: dict[str, int] = {
+    "critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0,
+}
+SEVERITY_ORDER: list[str] = ["critical", "high", "medium", "low", "info"]
 VALID_VERDICTS = {"verified", "false_positive", "needs_review", "unverified", "na_cpg"}
 VALID_CONFIDENCE = {"verified", "high", "medium", "low"}
 
@@ -126,9 +141,11 @@ def _legacy_stable_key(finding: dict[str, Any]) -> str:
     return f"vscout:{digest}"
 
 
-def summarize_findings(findings: list[dict[str, Any]]) -> dict[str, int]:
+def summarize_findings(findings: list[dict[str, Any]] | None) -> dict[str, int]:
     summary = {key: 0 for key in SUMMARY_KEYS}
-    for finding in findings:
+    # Tolerate None — callers occasionally pass artifact.get("findings")
+    # without a fallback. Treat as empty.
+    for finding in (findings or []):
         if finding.get("suppressed"):
             continue
 
@@ -200,9 +217,67 @@ def parse_suppressions(path: str | Path | None) -> dict[str, str]:
     return suppressions
 
 
-def apply_suppressions(artifact: dict[str, Any], suppressions: dict[str, str]) -> dict[str, Any]:
+def apply_suppressions(
+    artifact: dict[str, Any],
+    suppressions: dict[str, str] | None,
+) -> dict[str, Any]:
     updated = copy.deepcopy(artifact)
-    findings = updated.get("findings", [])
+    # Null-tolerant: `"findings": null` in the artifact should behave the
+    # same as missing/empty rather than crashing the iteration.
+    findings = updated.get("findings") or []
+    # Tolerate None / empty rules — caller passed no .vuln-scout-ignore
+    # and just wants the chain-rollup normalization to run.
+    suppressions = suppressions or {}
+    # Pre-extract chain-pattern + file-glob suppression rules. Authors
+    # can write:
+    #   chain_pattern:mobile-debuggable-secret  too noisy on this repo
+    #   chain_pattern:mobile-*                  silence the whole family
+    #   chain_pattern:ios-*                     silence iOS chains
+    #   file:com/example/test/*                 silence test code
+    #   file:**/generated/*                     silence generated code
+    # in `.vuln-scout-ignore`. Wildcards use trailing `*` (chain_pattern)
+    # or fnmatch globs (file:).
+    # Same `.strip()` defensive pattern as chain_pattern (N+74): tolerate
+    # `{"file: src/test/*": ...}` (space after colon) from programmatic
+    # callers rather than silently no-op'ing.
+    file_glob_rules: list[tuple[str, str]] = [
+        (k[len(SUPP_PREFIX_FILE):].strip(), v)
+        for k, v in suppressions.items()
+        if k.startswith(SUPP_PREFIX_FILE) and k[len(SUPP_PREFIX_FILE):].strip()
+    ]
+    # `severity:<level>` rules suppress everything at-or-below the level.
+    # e.g. `severity:low` silences all `low`-severity findings.
+    # Useful for CI workflows that only want high+ findings to fail the build.
+    _SEV_RANK = SEVERITY_RANK
+    severity_floor: tuple[int, str] | None = None
+    for k, v in suppressions.items():
+        if k.startswith(SUPP_PREFIX_SEVERITY):
+            level = k[len(SUPP_PREFIX_SEVERITY):].strip().lower()
+            if level in _SEV_RANK:
+                rank = _SEV_RANK[level]
+                # Multiple rules → pick the highest floor (most aggressive)
+                if severity_floor is None or rank > severity_floor[0]:
+                    severity_floor = (rank, v)
+    # Strip leading whitespace from the slug part so operators who write
+    # `chain_pattern: mobile-*  reason` (with a space after the colon)
+    # get the same behaviour as `chain_pattern:mobile-*  reason`. Less
+    # surprising than silently ignoring the rule.
+    chain_pattern_rules: dict[str, str] = {
+        k[len(SUPP_PREFIX_CHAIN_PATTERN):].lstrip(): v
+        for k, v in suppressions.items()
+        if k.startswith(SUPP_PREFIX_CHAIN_PATTERN)
+        and k[len(SUPP_PREFIX_CHAIN_PATTERN):].lstrip()
+    }
+    chain_pattern_exact: dict[str, str] = {}
+    chain_pattern_globs: list[tuple[str, str]] = []
+    for slug, reason in chain_pattern_rules.items():
+        # Treat any rule containing wildcard chars (* or ?) as an
+        # fnmatch glob. Exact slugs still take priority via the
+        # `in chain_pattern_exact` check below.
+        if "*" in slug or "?" in slug:
+            chain_pattern_globs.append((slug, reason))
+        else:
+            chain_pattern_exact[slug] = reason
     for finding in findings:
         stable_key = stable_key_for(finding)
         finding["stable_key"] = stable_key
@@ -218,8 +293,110 @@ def apply_suppressions(artifact: dict[str, Any], suppressions: dict[str, str]) -
             reason = suppressions[legacy_key]
             if reason:
                 finding["suppression_reason"] = reason
+        elif severity_floor is not None and _SEV_RANK.get(
+            (finding.get("severity") or "info").lower(), 0
+        ) <= severity_floor[0]:
+            finding["suppressed"] = True
+            if severity_floor[1]:
+                finding["suppression_reason"] = severity_floor[1]
+        elif file_glob_rules and finding.get("file"):
+            # File-glob match against finding.file. First-match wins.
+            file_path = finding["file"]
+            matched_reason: str | None = None
+            for glob, reason in file_glob_rules:
+                if fnmatch.fnmatch(file_path, glob):
+                    matched_reason = reason
+                    break
+            if matched_reason is not None:
+                finding["suppressed"] = True
+                if matched_reason:
+                    finding["suppression_reason"] = matched_reason
+        elif chain_pattern_rules:
+            # Match against the primary chain_pattern AND every entry in
+            # chain_participations[]. A finding participates in multiple
+            # chains is suppressed if ANY of its memberships matches a
+            # rule slug (exact or prefix wildcard).
+            candidate_patterns: list[str] = []
+            if finding.get("chain_pattern"):
+                candidate_patterns.append(finding["chain_pattern"])
+            for p in finding.get("chain_participations") or []:
+                if not isinstance(p, dict):
+                    continue
+                if p.get("pattern"):
+                    candidate_patterns.append(p["pattern"])
+            matched_reason: str | None = None
+            for pat in candidate_patterns:
+                if pat in chain_pattern_exact:
+                    matched_reason = chain_pattern_exact[pat]
+                    break
+                for glob, reason in chain_pattern_globs:
+                    if fnmatch.fnmatch(pat, glob):
+                        matched_reason = reason
+                        break
+                if matched_reason is not None:
+                    break
+            if matched_reason is not None:
+                finding["suppressed"] = True
+                if matched_reason:
+                    finding["suppression_reason"] = matched_reason
 
     updated["summary"] = summarize_findings(findings)
+
+    # If `chains` is present, mark chains whose participants are ALL
+    # suppressed and recompute the chain rollups in `summary`. A chain
+    # where every member finding was suppressed should not contribute
+    # to dashboards / SLO counts. Chains stay in the array for audit
+    # but gain `suppressed: True`.
+    #
+    # When the artifact has no chains at all, we still normalize the
+    # rollup fields to safe defaults so downstream dashboards never see
+    # stale values left over from a pre-suppression state.
+    chains = updated.get("chains") or []
+    if not chains:
+        updated["summary"]["total_chains"] = 0
+        updated["summary"]["suppressed_chains"] = 0
+        updated["summary"]["chains_by_pattern"] = {}
+        updated["summary"]["chains_by_severity"] = {}
+    if chains:
+        by_id = {f.get("id"): f for f in findings if f.get("id")}
+        for c in chains:
+            participant_ids = c.get("finding_ids") or []
+            if not participant_ids:
+                continue
+            members = [by_id.get(fid) for fid in participant_ids if by_id.get(fid)]
+            if members and all(m.get("suppressed") for m in members):
+                c["suppressed"] = True
+        active_chains = [c for c in chains if not c.get("suppressed")]
+        suppressed_chains = [c for c in chains if c.get("suppressed")]
+        # Re-roll up by pattern + severity using only active chains.
+        pat_counts: dict[str, int] = {}
+        sev_counts: dict[str, int] = {}
+        for c in active_chains:
+            pat = c.get("pattern") or "unknown"
+            pat_counts[pat] = pat_counts.get(pat, 0) + 1
+            sev = c.get("severity") or "info"
+            sev_counts[sev] = sev_counts.get(sev, 0) + 1
+        _SEV_ORDER = SEVERITY_ORDER
+        updated["summary"]["total_chains"] = len(active_chains)
+        updated["summary"]["suppressed_chains"] = len(suppressed_chains)
+        updated["summary"]["chains_by_pattern"] = {
+            k: pat_counts[k] for k in sorted(pat_counts)
+        }
+        updated["summary"]["chains_by_severity"] = {
+            sev: sev_counts[sev]
+            for sev in _SEV_ORDER
+            if sev in sev_counts
+        }
+        # Roll up suppressed chains by pattern too, so a dashboard can
+        # show "5 active, 2 suppressed (mobile-debuggable-secret: 2)".
+        if suppressed_chains:
+            supp_pat_counts: dict[str, int] = {}
+            for c in suppressed_chains:
+                pat = c.get("pattern") or "unknown"
+                supp_pat_counts[pat] = supp_pat_counts.get(pat, 0) + 1
+            updated["summary"]["suppressed_chains_by_pattern"] = {
+                k: supp_pat_counts[k] for k in sorted(supp_pat_counts)
+            }
     return updated
 
 
@@ -629,15 +806,48 @@ def _build_sarif_code_flows(evidence: list[dict[str, Any]]) -> list[dict[str, An
     return [{"threadFlows": [{"locations": locations}]}]
 
 
-def _build_sarif_related_locations(finding: dict[str, Any], all_findings: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
-    """Build relatedLocations for chain-linked findings."""
-    chain_id = finding.get("chain_id")
-    if not chain_id:
+def _build_sarif_related_locations(
+    finding: dict[str, Any],
+    all_findings: list[dict[str, Any]],
+    suppressed_chain_ids: set[str] | None = None,
+) -> list[dict[str, Any]] | None:
+    """Build relatedLocations for chain-linked findings.
+
+    Walks every chain this finding participates in (chain_participations
+    from N+42), not just the primary chain_id. SARIF consumers see all
+    related findings whether they share the primary chain or any
+    secondary chain.
+
+    Suppressed chains (chain.suppressed=true via N+52) are excluded from
+    the link graph — operators silencing a chain class via
+    `chain_pattern:` rules shouldn't see those links resurface in SARIF.
+    """
+    suppressed_chain_ids = suppressed_chain_ids or set()
+
+    # Collect every non-suppressed chain id this finding participates in.
+    def _active_chain_ids(f: dict[str, Any]) -> set[str]:
+        ids: set[str] = set()
+        cid = f.get("chain_id")
+        if cid and cid not in suppressed_chain_ids:
+            ids.add(cid)
+        for p in f.get("chain_participations") or []:
+            if not isinstance(p, dict):
+                continue
+            pcid = p.get("chain_id")
+            if pcid and pcid not in suppressed_chain_ids:
+                ids.add(pcid)
+        return ids
+
+    chain_ids = _active_chain_ids(finding)
+    if not chain_ids:
         return None
 
+    finding_id = finding.get("id")
     related = []
     for i, other in enumerate(all_findings):
-        if other.get("chain_id") == chain_id and other.get("id") != finding.get("id"):
+        if other.get("id") == finding_id:
+            continue
+        if chain_ids & _active_chain_ids(other):
             related.append({
                 "id": i,
                 "physicalLocation": {
@@ -650,10 +860,19 @@ def _build_sarif_related_locations(finding: dict[str, Any], all_findings: list[d
     return related if related else None
 
 
+def _suppressed_chain_ids(artifact: dict[str, Any]) -> set[str]:
+    """Return the set of chain ids marked suppressed in this artifact."""
+    return {
+        c.get("id") for c in (artifact.get("chains") or [])
+        if c.get("suppressed") and c.get("id")
+    }
+
+
 def to_sarif(artifact: dict[str, Any], driver_name: str = "VulnScout") -> dict[str, Any]:
     rules: dict[str, dict[str, Any]] = {}
     results: list[dict[str, Any]] = []
-    all_findings = artifact.get("findings", [])
+    # Null-tolerant — same defense as apply_suppressions.
+    all_findings = artifact.get("findings") or []
 
     for finding in all_findings:
         if finding.get("suppressed") or finding.get("kind") != "finding":
@@ -661,14 +880,24 @@ def to_sarif(artifact: dict[str, Any], driver_name: str = "VulnScout") -> dict[s
 
         rule_id = _rule_id_for(finding)
 
-        # Build rule with CWE tags and numeric security-severity
+        # Build rule with CWE tags and numeric security-severity. CWE
+        # tags come from: finding.cwe (singular, legacy), and
+        # finding.chain_cwes (chain-aggregated, post-N+47). GitHub Code
+        # Scanning surfaces these as filterable rule tags.
         rule_tags = ["security"]
+        all_cwes: list[str] = []
         cwe = finding.get("cwe", "")
         if cwe:
-            # Normalize to "external/cwe/cwe-89" format for GitHub Code Scanning
-            cwe_num = _re.search(r"(\d+)", str(cwe))
+            all_cwes.append(str(cwe))
+        for c in finding.get("chain_cwes") or []:
+            if c not in all_cwes:
+                all_cwes.append(c)
+        for cwe_token in all_cwes:
+            cwe_num = _re.search(r"(\d+)", cwe_token)
             if cwe_num:
-                rule_tags.append(f"external/cwe/cwe-{cwe_num.group(1)}")
+                tag = f"external/cwe/cwe-{cwe_num.group(1)}"
+                if tag not in rule_tags:
+                    rule_tags.append(tag)
 
         cvss_score = finding.get("cvss_score")
         security_severity = str(cvss_score) if cvss_score else finding.get("severity", "info")
@@ -718,8 +947,12 @@ def to_sarif(artifact: dict[str, Any], driver_name: str = "VulnScout") -> dict[s
         if code_flows:
             result["codeFlows"] = code_flows
 
-        # Add relatedLocations for chain-linked findings
-        related = _build_sarif_related_locations(finding, all_findings)
+        # Add relatedLocations for chain-linked findings. Pass the
+        # suppressed-chain set so SARIF doesn't surface links from
+        # silenced chains.
+        related = _build_sarif_related_locations(
+            finding, all_findings, suppressed_chain_ids=_suppressed_chain_ids(artifact)
+        )
         if related:
             result["relatedLocations"] = related
 

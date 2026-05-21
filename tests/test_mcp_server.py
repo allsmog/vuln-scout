@@ -41,6 +41,10 @@ class McpServerTests(unittest.TestCase):
             "vulnscout_joern_query",
             "vulnscout_joern_discover",
             "vulnscout_verify_findings",
+            "vulnscout_codegraph_status",
+            "vulnscout_codegraph_search",
+            "vulnscout_codegraph_context",
+            "vulnscout_codegraph_affected",
             "vulnscout_read_artifact",
         })
         report = next(tool for tool in mcp_server.list_tools() if tool["name"] == "vulnscout_report")
@@ -205,6 +209,24 @@ class McpServerTests(unittest.TestCase):
         )
 
         self.assertEqual(cleaned, "List(decode, encode)")
+
+    def test_codegraph_status_unavailable_is_structured(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with mock.patch.object(mcp_server.codegraph_adapter.shutil, "which", return_value=None):
+                result = mcp_server.call_tool("vulnscout_codegraph_status", {"target": tmpdir})
+
+        self.assertEqual(result["state"], "unavailable")
+
+    def test_codegraph_affected_tests_are_normalized(self) -> None:
+        payload = {
+            "changedFiles": ["server.js"],
+            "affectedTests": ["tests/server.test.js"],
+            "totalDependentsTraversed": 1,
+        }
+
+        paths = mcp_server.codegraph_adapter._extract_paths(payload)
+
+        self.assertEqual(paths, ["tests/server.test.js"])
 
 
 if __name__ == "__main__":

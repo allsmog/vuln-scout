@@ -94,7 +94,7 @@ def validate() -> list[str]:
     if ".claude-plugin/plugin.json" not in readmes["agents"]:
         errors.append("AGENTS.md must describe the Claude-first plugin layout")
 
-    expected_counts = {"commands": 14, "agents": 8, "skills": counts["skills"]}
+    expected_counts = {"commands": 15, "agents": 9, "skills": counts["skills"]}
     if counts["commands"] != expected_counts["commands"]:
         errors.append(f"commands count drifted: expected {expected_counts['commands']}, got {counts['commands']}")
     if legacy_commands != canonical_commands:

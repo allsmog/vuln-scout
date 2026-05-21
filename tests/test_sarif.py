@@ -82,6 +82,92 @@ class SarifTests(unittest.TestCase):
             self.assertIn("text", result["message"])
             self.assertTrue(len(result["message"]["text"]) > 0)
 
+    def test_sarif_rule_tags_include_chain_cwes(self) -> None:
+        # Synthetic artifact with a finding carrying chain_cwes should
+        # produce SARIF rule tags for each CWE.
+        artifact = {
+            "findings": [
+                {"id": "F1", "type": "x", "title": "T1",
+                 "severity": "high", "kind": "finding",
+                 "file": "a.java", "line": 1,
+                 "message": "Patch.",
+                 "chain_cwes": ["CWE-312", "CWE-639"]},
+            ],
+        }
+        sarif = artifact_utils.to_sarif(artifact)
+        run = sarif["runs"][0]
+        rule = run["tool"]["driver"]["rules"][0]
+        tags = rule["properties"]["tags"]
+        self.assertIn("external/cwe/cwe-312", tags)
+        self.assertIn("external/cwe/cwe-639", tags)
+
+    def test_sarif_related_locations_exclude_suppressed_chain_links(self) -> None:
+        # Two findings in the same suppressed chain → SARIF must not
+        # surface them as related locations.
+        artifact = {
+            "findings": [
+                {"id": "F1", "type": "x", "title": "T1", "severity": "high",
+                 "kind": "finding", "file": "a.java", "line": 1,
+                 "message": "p", "chain_id": "chain-001"},
+                {"id": "F2", "type": "y", "title": "T2", "severity": "high",
+                 "kind": "finding", "file": "b.java", "line": 2,
+                 "message": "q", "chain_id": "chain-001"},
+            ],
+            "chains": [
+                {"id": "chain-001", "pattern": "p", "severity": "high",
+                 "suppressed": True, "finding_ids": ["F1", "F2"]},
+            ],
+        }
+        sarif = artifact_utils.to_sarif(artifact)
+        for r in sarif["runs"][0]["results"]:
+            self.assertNotIn(
+                "relatedLocations", r,
+                f"suppressed chain should not produce related locations, got: {r}",
+            )
+
+    def test_sarif_related_locations_include_multi_chain_links(self) -> None:
+        # Finding A participates only in chain-001 (primary). Finding B
+        # has chain-001 in chain_participations only. Both should be
+        # related-linked despite B's chain_id being unset.
+        artifact = {
+            "findings": [
+                {"id": "F1", "type": "x", "title": "T1",
+                 "severity": "high", "kind": "finding",
+                 "file": "a.java", "line": 1,
+                 "message": "p",
+                 "chain_id": "chain-001"},
+                {"id": "F2", "type": "y", "title": "T2",
+                 "severity": "high", "kind": "finding",
+                 "file": "b.java", "line": 2,
+                 "message": "q",
+                 "chain_participations": [
+                     {"chain_id": "chain-001", "role": "sink"},
+                 ]},
+            ],
+        }
+        sarif = artifact_utils.to_sarif(artifact)
+        results = sarif["runs"][0]["results"]
+        # Find F1 (located at a.java:1) and F2 (b.java:2) by their URIs.
+        f1_result = next(
+            r for r in results
+            if r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "a.java"
+        )
+        f2_result = next(
+            r for r in results
+            if r["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "b.java"
+        )
+        # Both directions of the chain link should be present.
+        f1_related = f1_result.get("relatedLocations") or []
+        f2_related = f2_result.get("relatedLocations") or []
+        self.assertTrue(
+            any("T2" in rel.get("message", {}).get("text", "") for rel in f1_related),
+            f"expected F2 in F1.relatedLocations, got: {f1_related}",
+        )
+        self.assertTrue(
+            any("T1" in rel.get("message", {}).get("text", "") for rel in f2_related),
+            f"expected F1 in F2.relatedLocations, got: {f2_related}",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

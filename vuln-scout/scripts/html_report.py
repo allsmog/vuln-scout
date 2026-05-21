@@ -96,10 +96,13 @@ _KW = {
 
 def generate(artifact: dict[str, Any], max_findings: int = 200) -> str:
     """Return a self-contained HTML string from a VulnScout findings artifact."""
-    summary = artifact.get("summary", {})
-    findings_all = artifact.get("findings", [])
-    chains = artifact.get("chains", [])
-    coverage = artifact.get("coverage", {})
+    # Use `or fallback` rather than `get(K, fallback)` so an explicit
+    # None for any field doesn't crash downstream iteration. Same fix
+    # as bug 31 (markdown_report) / bug 38 (evidence_bundle).
+    summary = artifact.get("summary") or {}
+    findings_all = artifact.get("findings") or []
+    chains = artifact.get("chains") or []
+    coverage = artifact.get("coverage") or {}
 
     # Separate findings and hotspots
     findings = [f for f in findings_all if f.get("kind") == "finding" and not f.get("suppressed")]
@@ -550,7 +553,7 @@ def _tool_maturity_section(artifact: dict[str, Any]) -> str:
     profile_maturity = maturity.get("profiles", {}).get(profile)
     tools = artifact.get("tool_status", {}).get("requested") or artifact.get("coverage", {}).get("tools_used") or []
     if not tools:
-        tools = sorted({f.get("source_tool") for f in artifact.get("findings", []) if f.get("source_tool")})
+        tools = sorted({f.get("source_tool") for f in (artifact.get("findings") or []) if f.get("source_tool")})
     analyzers = maturity.get("analyzers", {})
     commands = maturity.get("commands", {})
 
@@ -1259,7 +1262,7 @@ def _coverage_section(coverage: dict[str, Any], artifact: dict[str, Any]) -> str
 
 def _next_actions_section(artifact: dict[str, Any]) -> str:
     findings = [
-        f for f in artifact.get("findings", [])
+        f for f in (artifact.get("findings") or [])
         if f.get("kind") == "finding" and not f.get("suppressed")
     ]
     if not findings:

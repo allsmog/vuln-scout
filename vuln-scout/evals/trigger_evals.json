@@ -175,5 +175,38 @@
     "should_trigger": true,
     "repeat": 3,
     "min_trigger_rate": 0.67
+  },
+  {
+    "id": "mobile-audit-command-positive",
+    "kind": "command",
+    "query": "/vuln-scout:mobile-audit ~/bug-bounty/target",
+    "fixture_path": ".",
+    "expected_targets": [
+      "/vuln-scout:mobile-audit",
+      "mobile-audit"
+    ],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "mobile-android-skill-positive",
+    "kind": "skill",
+    "query": "I'm auditing a decompiled APK at ~/work/target/jadx_out, what should I look for?",
+    "fixture_path": ".",
+    "expected_targets": ["mobile-android"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
+  },
+  {
+    "id": "mobile-ios-skill-positive",
+    "kind": "skill",
+    "query": "I have an Info.plist and Swift sources from an iOS app - find auth issues",
+    "fixture_path": ".",
+    "expected_targets": ["mobile-ios"],
+    "should_trigger": true,
+    "repeat": 3,
+    "min_trigger_rate": 0.67
   }
 ]

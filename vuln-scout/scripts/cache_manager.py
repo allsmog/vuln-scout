@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import codegraph_adapter
+
 log = logging.getLogger("vuln-scout")
 
 CACHE_DIR_NAME = ".vuln-scout-cache"
@@ -108,6 +110,18 @@ class ScanCache:
         changed.update(dependents_to_add)
         if dependents_to_add:
             log.info("Dependency invalidation: %d additional files", len(dependents_to_add))
+
+        if changed:
+            affected = codegraph_adapter.affected(str(self._root), sorted(changed))
+            if affected.get("state") == "succeeded":
+                graph_files = {
+                    path for path in affected.get("affected_files", [])
+                    if isinstance(path, str) and path in set(all_files)
+                }
+                new_files = graph_files - changed
+                if new_files:
+                    changed.update(new_files)
+                    log.info("CodeGraph invalidation: %d additional files", len(new_files))
 
         return sorted(changed)
 

@@ -29,16 +29,184 @@ def generate(artifact: dict[str, Any]) -> str:
     sections = [
         _header(artifact),
         _executive_summary(artifact),
+        _diff_since_prior(artifact),
         _tool_status(artifact),
         _tool_maturity(artifact),
+        _scan_diagnostics(artifact),
         _attack_chains(artifact),
-        _all_findings(artifact.get("findings", [])),
-        _full_hotspot_list(artifact.get("findings", [])),
+        _all_findings((artifact.get("findings") or [])),
+        _full_hotspot_list((artifact.get("findings") or [])),
         _coverage_panel(artifact),
         _trust_legend(),
         _next_actions(artifact),
     ]
     return "\n\n".join(s for s in sections if s)
+
+
+def _scan_diagnostics(artifact: dict[str, Any]) -> str:
+    """Render audit-trail failures from this scan.
+
+    Surfaces:
+      - chain pattern failures (`scan_metadata.chain_pattern_failures`)
+      - sub-detector failures (`tool_statuses['vuln-class-detector'].detector_failures`)
+
+    Returns "" when there's nothing to report. Operators reading the
+    markdown report shouldn't have to grep the JSON to discover that
+    a chain pattern or detector silently degraded.
+    """
+    meta = artifact.get("scan_metadata") or {}
+    chain_failures = meta.get("chain_pattern_failures") or []
+    tool_statuses = artifact.get("tool_statuses") or {}
+    vcd_status = tool_statuses.get("vuln-class-detector") or {}
+    detector_failures = vcd_status.get("detector_failures") or []
+    if not chain_failures and not detector_failures:
+        return ""
+    lines: list[str] = ["## Scan Diagnostics\n"]
+    if chain_failures:
+        lines.append(
+            f"_{len(chain_failures)} chain pattern(s) failed during detection. "
+            "Remaining patterns ran normally; see audit log for details._\n"
+        )
+        for f in chain_failures:
+            lines.append(f"- `{f.get('pattern', '?')}`: {f.get('error', '?')}")
+        lines.append("")
+    if detector_failures:
+        lines.append(
+            f"_{len(detector_failures)} sub-detector(s) raised during the scan. "
+            "Remaining detectors ran normally; see audit log for details._\n"
+        )
+        for f in detector_failures:
+            lines.append(f"- `{f.get('detector', '?')}`: {f.get('error', '?')}")
+    return "\n".join(lines).rstrip()
+
+
+def _diff_since_prior(artifact: dict[str, Any]) -> str:
+    """Render the diff-against summary if the artifact carries one.
+
+    Surfaces only the entries reviewers act on: new findings, gone findings,
+    new chains, gone chains. The `kept` lists are large and uninteresting at
+    review time — they stay in the JSON for tooling.
+    """
+    diff = artifact.get("diff")
+    if not isinstance(diff, dict):
+        return ""
+    new_findings = diff.get("new") or []
+    gone_findings = diff.get("gone") or []
+    chains_diff = diff.get("chains") or {}
+    new_chains = chains_diff.get("new") or []
+    gone_chains = chains_diff.get("gone") or []
+    kept_chains = chains_diff.get("kept") or []
+    drift = chains_diff.get("severity_drift") or []
+    if not (new_findings or gone_findings or new_chains or gone_chains or drift):
+        # If `kept` is populated but nothing else, the scan is stable
+        # vs prior — say so explicitly instead of returning an empty
+        # section. Reviewers reading the report want a positive signal
+        # that nothing regressed, not silence.
+        kept_findings = diff.get("kept") or []
+        if kept_findings or kept_chains:
+            return (
+                "## Changes since prior scan\n\n"
+                f"_No changes vs prior scan — {len(kept_chains)} chain(s) and "
+                f"{len(kept_findings)} finding(s) still present, none new or resolved._"
+            )
+        return ""
+    lines: list[str] = ["## Changes since prior scan\n"]
+    # Inline summary lines for at-a-glance read of all deltas.
+    if any((new_chains, gone_chains, drift, kept_chains)):
+        summary_bits = []
+        if new_chains:
+            summary_bits.append(f"{len(new_chains)} new")
+        if gone_chains:
+            summary_bits.append(f"{len(gone_chains)} resolved")
+        if drift:
+            summary_bits.append(f"{len(drift)} drift")
+        if kept_chains:
+            summary_bits.append(f"{len(kept_chains)} unchanged")
+        if summary_bits:
+            lines.append(f"_Chains: {', '.join(summary_bits)}._\n")
+    # Same one-liner for findings — `kept` is large, the new/gone
+    # counts are what the triager cares about.
+    kept_findings = (diff.get("kept") or [])
+    if any((new_findings, gone_findings, kept_findings)):
+        bits = []
+        if new_findings:
+            bits.append(f"{len(new_findings)} new")
+        if gone_findings:
+            bits.append(f"{len(gone_findings)} resolved")
+        if kept_findings:
+            bits.append(f"{len(kept_findings)} unchanged")
+        if bits:
+            lines.append(f"_Findings: {', '.join(bits)}._\n")
+    if new_chains:
+        # Sort worst-first so the most-impactful new chain leads.
+        # Stable secondary sort by stable_key keeps output byte-stable.
+        _sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+        sorted_new = sorted(
+            new_chains,
+            key=lambda c: (
+                -_sev_rank.get(c.get("severity") or "info", 0),
+                c.get("stable_key", ""),
+            ),
+        )
+        lines.append(f"**New chains ({len(sorted_new)}):**\n")
+        for c in sorted_new:
+            sev = c.get("severity") or "?"
+            label = c.get("pattern") or c.get("name") or "?"
+            lines.append(f"- `[{sev}]` `{label}` (`{c.get('stable_key', '?')}`)")
+        lines.append("")
+    _sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+    if gone_chains:
+        # Sort by stable_key only — `gone` entries don't carry severity
+        # from the diff schema, just name + stable_key + pattern.
+        sorted_gone = sorted(gone_chains, key=lambda c: c.get("stable_key", ""))
+        lines.append(f"**Resolved chains ({len(sorted_gone)}):**\n")
+        for c in sorted_gone:
+            label = c.get("pattern") or c.get("name") or "?"
+            lines.append(f"- `{label}` (`{c.get('stable_key', '?')}`)")
+        lines.append("")
+    if drift:
+        # Sort escalations first, then by to_severity desc — escalations
+        # are the urgent ones; within a direction, the worst lands first.
+        sorted_drift = sorted(
+            drift,
+            key=lambda d: (
+                0 if d.get("direction") == "escalated" else 1,
+                -_sev_rank.get(d.get("to_severity") or "info", 0),
+                d.get("stable_key", ""),
+            ),
+        )
+        lines.append(f"**Chain severity drift ({len(sorted_drift)}):**\n")
+        for d in sorted_drift:
+            arrow = "↑" if d.get("direction") == "escalated" else "↓"
+            label = d.get("pattern") or d.get("name") or "?"
+            lines.append(
+                f"- {arrow} `{label}`: "
+                f"`{d.get('from_severity')}` → `{d.get('to_severity')}` "
+                f"(`{d.get('stable_key', '?')}`)"
+            )
+        lines.append("")
+    if new_findings:
+        _sev_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+        sorted_findings = sorted(
+            new_findings,
+            key=lambda f: (
+                -_sev_rank.get(f.get("severity") or "info", 0),
+                f.get("file", ""),
+                f.get("line", 0),
+            ),
+        )
+        lines.append(f"**New findings ({len(sorted_findings)}):**\n")
+        for f in sorted_findings[:20]:
+            sev = f.get("severity") or "?"
+            lines.append(
+                f"- `[{sev}]` {f.get('type', '?')} at `{f.get('file', '?')}:{f.get('line', '?')}`"
+            )
+        if len(sorted_findings) > 20:
+            lines.append(f"- … and {len(sorted_findings) - 20} more")
+        lines.append("")
+    if gone_findings:
+        lines.append(f"**Resolved findings ({len(gone_findings)}):** see `diff.gone` in artifact JSON.\n")
+    return "\n".join(lines).rstrip()
 
 
 # ---------------------------------------------------------------------------
@@ -69,9 +237,14 @@ def _risk_rating(summary: dict[str, Any]) -> str:
 
 def _executive_summary(artifact: dict[str, Any]) -> str:
     summary = artifact.get("summary", {})
-    chains = artifact.get("chains", [])
-    coverage = artifact.get("coverage", {})
-    findings = artifact.get("findings", [])
+    # Filter out suppressed chains so the exec summary matches the
+    # Attack Chains section and the recomputed rollups in summary.
+    # Use `or []` to tolerate an artifact where `chains`/`findings`
+    # is explicitly None (vs absent) — common in hand-edited fixtures
+    # and CI artifact passes that strip empty arrays.
+    chains = [c for c in (artifact.get("chains") or []) if not c.get("suppressed")]
+    coverage = artifact.get("coverage") or {}
+    findings = artifact.get("findings") or []
 
     risk = _risk_rating(summary)
     verified = sum(1 for f in findings if f.get("kind") == "finding" and f.get("verdict") == "verified" and not f.get("suppressed"))
@@ -91,6 +264,34 @@ def _executive_summary(artifact: dict[str, Any]) -> str:
         f"**Suppressed Entries**: {suppressed}  ",
         f"**Attack Chains**: {len(chains)}  ",
     ]
+
+    # Chain breakdown by severity (when the summary already ran the
+    # rollup we did in mobile_scan; otherwise we recompute).
+    chains_by_sev = summary.get("chains_by_severity") or {}
+    if not chains_by_sev and chains:
+        for c in chains:
+            sev = c.get("severity") or "info"
+            chains_by_sev[sev] = chains_by_sev.get(sev, 0) + 1
+    if chains_by_sev:
+        sev_bits = [
+            f"{sev}: {chains_by_sev[sev]}"
+            for sev in ("critical", "high", "medium", "low")
+            if chains_by_sev.get(sev)
+        ]
+        if sev_bits:
+            rows.append(f"**Chains by Severity**: {', '.join(sev_bits)}  ")
+
+    # Most common chain patterns — useful for "what shape is this app
+    # leaking" at-a-glance.
+    chains_by_pat = summary.get("chains_by_pattern") or {}
+    if not chains_by_pat and chains:
+        for c in chains:
+            pat = c.get("pattern") or "unknown"
+            chains_by_pat[pat] = chains_by_pat.get(pat, 0) + 1
+    if chains_by_pat:
+        top = sorted(chains_by_pat.items(), key=lambda kv: (-kv[1], kv[0]))[:5]
+        top_str = ", ".join(f"`{p}`={n}" for p, n in top)
+        rows.append(f"**Top Chain Patterns**: {top_str}  ")
 
     # Tools used
     tools_used = coverage.get("tools_used", [])
@@ -157,9 +358,15 @@ def _tool_maturity(artifact: dict[str, Any]) -> str:
 
     profile = artifact.get("scan_profile")
     profile_maturity = maturity.get("profiles", {}).get(profile)
-    tools = artifact.get("tool_status", {}).get("requested") or artifact.get("coverage", {}).get("tools_used") or []
+    # Use `or {}` rather than `get(K, {})` so an explicit None doesn't
+    # crash the chained .get(). Same defensive pattern as bug 31.
+    tools = (
+        (artifact.get("tool_status") or {}).get("requested")
+        or (artifact.get("coverage") or {}).get("tools_used")
+        or []
+    )
     if not tools:
-        tools = sorted({f.get("source_tool") for f in artifact.get("findings", []) if f.get("source_tool")})
+        tools = sorted({f.get("source_tool") for f in (artifact.get("findings") or []) if f.get("source_tool")})
     analyzers = maturity.get("analyzers", {})
     commands = maturity.get("commands", {})
 
@@ -212,12 +419,15 @@ def _trust_legend() -> str:
 # ---------------------------------------------------------------------------
 
 def _attack_chains(artifact: dict[str, Any]) -> str:
-    chains = artifact.get("chains", [])
+    # Skip suppressed chains (every participant suppressed → chain.suppressed
+    # set by artifact_utils.apply_suppressions). They stay in the JSON for
+    # audit but don't belong in the reviewer-facing report.
+    chains = [c for c in (artifact.get("chains") or []) if not c.get("suppressed")]
     if not chains:
         return ""
 
     findings_by_id = {}
-    for f in artifact.get("findings", []):
+    for f in (artifact.get("findings") or []):
         fid = f.get("id")
         if fid:
             findings_by_id[fid] = f
@@ -229,21 +439,69 @@ def _attack_chains(artifact: dict[str, Any]) -> str:
         chain_id = chain.get("id", "")
         finding_ids = chain.get("finding_ids", [])
         flow_desc = chain.get("flow_description", "")
+        impact = chain.get("impact", "")
 
-        lines.append(f"### {chain_name}")
+        severity = chain.get("severity")
+        confidence = chain.get("confidence")
+        cvss_estimate = chain.get("cvss_estimate")
+        sev_badge = f" `[{severity}]`" if severity else ""
+        if cvss_estimate is not None:
+            sev_badge += f" *(CVSS≈{cvss_estimate})*"
+        if confidence and confidence != "high":
+            sev_badge += f" *(confidence: {confidence})*"
+        lines.append(f"### {chain_name}{sev_badge}")
+        id_parts: list[str] = []
         if chain_id:
-            lines.append(f"*Chain ID: {chain_id}*\n")
+            id_parts.append(f"Chain ID: {chain_id}")
+        stable_key = chain.get("stable_key")
+        if stable_key:
+            id_parts.append(f"stable_key: `{stable_key}`")
+        if id_parts:
+            lines.append(f"*{' • '.join(id_parts)}*\n")
 
+        if impact:
+            lines.append(f"**Impact:** {impact}\n")
+        cwes = chain.get("cwes") or []
+        if cwes:
+            cwe_links = [
+                f"[{c}](https://cwe.mitre.org/data/definitions/{c.split('-')[-1]}.html)"
+                for c in cwes
+            ]
+            lines.append(f"**CWE:** {', '.join(cwe_links)}\n")
         if flow_desc:
-            lines.append(f"{flow_desc}\n")
+            lines.append(f"**Flow:** {flow_desc}\n")
 
-        # Build Mermaid diagram from linked findings
+        # When there's only one participant (rare but possible — a
+        # chain detector that matched only the precondition), Mermaid
+        # can't render an edge. Surface the participant explicitly so
+        # the chain section isn't a dead-end.
+        if len(finding_ids) == 1:
+            f = findings_by_id.get(finding_ids[0])
+            if f:
+                lines.append(
+                    f"**Participant:** `{f.get('file', '?')}:{f.get('line', '?')}` "
+                    f"({f.get('type', 'unknown')})\n"
+                )
+        # Build Mermaid diagram from linked findings. Labels prefer the
+        # finding's role + short type + file:line — full titles would
+        # blow out node width in markdown preview. The full title is
+        # already in the Findings section.
         if len(finding_ids) >= 2:
             nodes = []
             for fid in finding_ids:
                 f = findings_by_id.get(fid)
                 if f:
-                    label = f"{f.get('title', fid)} in {f.get('file', '?')}:{f.get('line', '?')}"
+                    # Find the role for this chain by looking up the
+                    # participation entry matching the chain id.
+                    role = ""
+                    for p in (f.get("chain_participations") or []):
+                        if p.get("chain_id") == chain_id:
+                            role = p.get("role") or ""
+                            break
+                    role_prefix = f"[{role}] " if role else ""
+                    type_str = f.get("type") or "finding"
+                    loc = f"{f.get('file', '?')}:{f.get('line', '?')}"
+                    label = f"{role_prefix}{type_str}<br/>{loc}"
                     # Sanitize label for Mermaid (remove brackets, quotes)
                     label = label.replace('"', "'").replace("[", "(").replace("]", ")")
                     nodes.append((fid, label))
@@ -271,10 +529,14 @@ def _attack_chains(artifact: dict[str, Any]) -> str:
 
 def _all_findings(findings: list[dict[str, Any]]) -> str:
     reportable = [
-        f for f in findings
+        f for f in (findings or [])
         if f.get("kind") == "finding" and not f.get("suppressed")
     ]
+    # Sort by: chain membership (chains first), severity desc, CVSS desc. A
+    # finding tagged with chain_id participates in an end-to-end primitive, so
+    # triagers should see it before standalone findings of equal severity.
     reportable.sort(key=lambda f: (
+        0 if f.get("chain_id") else 1,
         -SEVERITY_PRIORITY.get(f.get("severity", "info"), 0),
         -(f.get("cvss_score") or 0),
     ))
@@ -300,10 +562,37 @@ def _all_findings(findings: list[dict[str, Any]]) -> str:
                          if c.startswith("CWE-") else c for c in cwe_items]
             cwe_str = f" | {', '.join(cwe_links)}"
 
-        lines.append(f"### {badge} {title}")
+        chain_id = f.get("chain_id")
+        chain_role = f.get("chain_role")
+        chain_pattern = f.get("chain_pattern")
+        chain_marker = ""
+        if chain_id:
+            # If the finding participates in MULTIPLE chains, surface
+            # every one — multi-chain findings are higher-priority
+            # since they're load-bearing across primitives.
+            participations = f.get("chain_participations") or []
+            patterns_with_roles: list[str] = []
+            for p in participations:
+                if isinstance(p, dict) and p.get("pattern"):
+                    role = p.get("role") or "?"
+                    patterns_with_roles.append(f"`{p['pattern']}`:{role}")
+            if len(patterns_with_roles) > 1:
+                # Multi-chain: list every participation
+                chain_marker = f" \\[chains {', '.join(patterns_with_roles)}\\]"
+            else:
+                # Single chain (back-compat): the canonical N+30 form
+                role_str = f" — {chain_role}" if chain_role else ""
+                chain_label = chain_pattern or chain_id
+                chain_marker = f" \\[chain `{chain_label}`{role_str}\\]"
+        lines.append(f"### {badge} {title}{chain_marker}")
         lines.append(f"**Location**: {file_loc}{cvss_str}{cwe_str}  ")
         confidence = f.get("confidence", "unknown")
-        lines.append(f"**Verdict**: {verdict} | **Confidence**: {confidence} | **ID**: `{f.get('id', '?')}`\n")
+        conf_extra = ""
+        if (f.get("metadata") or {}).get("confidence_boosted_by_chain"):
+            conf_extra = " (boosted by chain)"
+        lines.append(
+            f"**Verdict**: {verdict} | **Confidence**: {confidence}{conf_extra} | **ID**: `{f.get('id', '?')}`\n"
+        )
         lines.append(f"{_trust_badge(f)}\n")
         confidence_reason = _confidence_reason_block(f)
         if confidence_reason:
@@ -346,18 +635,31 @@ def _all_findings(findings: list[dict[str, Any]]) -> str:
 
 def _full_hotspot_list(findings: list[dict[str, Any]]) -> str:
     hotspots = [
-        f for f in findings
+        f for f in (findings or [])
         if f.get("kind") == "hotspot" and not f.get("suppressed")
     ]
     if not hotspots:
         return ""
+    # Same ordering policy as the findings list: chain-tagged first,
+    # then severity desc. A hotspot that participates in an end-to-end
+    # primitive is more urgent than a standalone medium of equal sev.
+    hotspots.sort(key=lambda f: (
+        0 if f.get("chain_id") else 1,
+        -SEVERITY_PRIORITY.get(f.get("severity", "info"), 0),
+        f.get("file", ""),
+    ))
 
     lines = [f"## Hotspots ({len(hotspots)} requiring follow-up)\n"]
     for h in hotspots:
         title = h.get("title", "Unknown")
         loc = f"`{h.get('file', '?')}:{h.get('line', '?')}`"
         verdict = h.get("verdict", "unverified")
-        lines.append(f"- **{title}** at {loc} -- {verdict}")
+        sev = h.get("severity", "info")
+        chain_pattern = h.get("chain_pattern")
+        chain_marker = f" \\[chain `{chain_pattern}`\\]" if chain_pattern else ""
+        lines.append(
+            f"- `[{sev}]` **{title}** at {loc} -- {verdict}{chain_marker}"
+        )
 
     return "\n".join(lines)
 
@@ -401,24 +703,54 @@ def _coverage_panel(artifact: dict[str, Any]) -> str:
 
 
 def _next_actions(artifact: dict[str, Any]) -> str:
-    findings = [f for f in artifact.get("findings", []) if f.get("kind") == "finding" and not f.get("suppressed")]
-    if not findings:
+    findings = [f for f in (artifact.get("findings") or []) if f.get("kind") == "finding" and not f.get("suppressed")]
+    chains = [
+        c for c in (artifact.get("chains", []) or [])
+        if not c.get("suppressed")
+    ]
+    if not findings and not chains:
         return "## Next Actions\n\nNo reportable findings remain. Keep the `.claude/findings.json` artifact for audit history."
 
     verified = [f for f in findings if f.get("verdict") == "verified"]
     blocking = [f for f in findings if SEVERITY_PRIORITY.get(f.get("severity", "info"), 0) >= SEVERITY_PRIORITY["high"]]
     unverified = [f for f in findings if f.get("verdict") == "unverified"]
+    # Chains are already sorted worst-first by the chain detector.
+    high_chains = [
+        c for c in chains
+        if SEVERITY_PRIORITY.get(c.get("severity", "info"), 0) >= SEVERITY_PRIORITY["high"]
+    ]
 
     actions = ["## Next Actions\n"]
     index = 1
+    if high_chains:
+        # Chains describe end-to-end primitives — triage them before
+        # standalone findings of equal severity.
+        worst = high_chains[0]
+        actions.append(
+            f"{index}. Triage the {len(high_chains)} high-or-critical chain(s) first — start with "
+            f"`{worst.get('pattern') or worst.get('name')}` "
+            f"(`{worst.get('stable_key', worst.get('id', '?'))}`)."
+        )
+        index += 1
+        actions.append(
+            f"{index}. Generate bug-bounty submissions: "
+            f"`python3 vuln-scout/scripts/submission_template.py <findings.json>`"
+        )
+        index += 1
     if verified:
-        actions.append(f"{index}. Fix or explicitly suppress the {len(verified)} verified finding(s) first.")
+        actions.append(f"{index}. Fix or explicitly suppress the {len(verified)} verified finding(s).")
         index += 1
     if blocking:
         actions.append(f"{index}. Use `--fail-on high` in CI until the {len(blocking)} high-or-higher finding(s) are resolved.")
         index += 1
     if unverified:
         actions.append(f"{index}. Run `/vuln-scout:verify` or the `deep` profile on the {len(unverified)} unverified finding(s).")
+        index += 1
+    if chains:
+        actions.append(
+            f"{index}. If a chain class is a known false positive on this repo, add "
+            f"`chain_pattern:<slug>  <reason>` to `.vuln-scout-ignore`."
+        )
         index += 1
     actions.append(f"{index}. Re-render SARIF or HTML from the same `.claude/findings.json` artifact after triage.")
     return "\n".join(actions)

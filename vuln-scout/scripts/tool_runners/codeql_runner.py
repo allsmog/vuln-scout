@@ -80,8 +80,9 @@ def is_available() -> bool:
 
 
 def _set_status(status: dict[str, Any]) -> None:
-    global LAST_STATUS
-    LAST_STATUS = status
+    # Mutate in place — see bug 34/35/36 for the import-orphan reasoning.
+    LAST_STATUS.clear()
+    LAST_STATUS.update(status)
 
 
 def run_with_status(
@@ -91,7 +92,8 @@ def run_with_status(
     model_packs: str | list[str] | None = None,
 ) -> dict[str, Any]:
     findings = run(target, languages=languages, cache_dir=cache_dir, model_packs=model_packs)
-    return {"findings": findings, "status": LAST_STATUS}
+    # Snapshot to insulate the caller from future _set_status mutations.
+    return {"findings": findings, "status": dict(LAST_STATUS)}
 
 
 def run(

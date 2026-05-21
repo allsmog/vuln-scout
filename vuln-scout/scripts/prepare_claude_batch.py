@@ -34,7 +34,7 @@ def main() -> int:
     entry_points = artifact.get("entry_points")
 
     batch = prepare_analysis_batch(
-        artifact.get("findings", []),
+        artifact.get("findings") or [],
         project_root,
         entry_points,
     )

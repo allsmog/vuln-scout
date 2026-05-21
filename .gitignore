@@ -36,6 +36,7 @@ __pycache__/
 # VulnScout scan artifacts
 .vuln-scout-cache/
 .codeql/
+.codegraph/
 *.jsonl
 
 # Node modules

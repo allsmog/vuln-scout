@@ -22,8 +22,11 @@ def input_digest(path: str | Path) -> str:
 
 
 def _unsuppressed_findings(artifact: dict[str, Any]) -> list[dict[str, Any]]:
+    # Use `or []` rather than `get("findings", [])` so an explicit None
+    # value doesn't crash with NoneType-is-not-iterable. Same fix
+    # pattern as bug 31 (markdown_report) / bug 30 (mobile_scan diff).
     return [
-        finding for finding in artifact.get("findings", [])
+        finding for finding in (artifact.get("findings") or [])
         if finding.get("kind") == "finding" and not finding.get("suppressed")
     ]
 
@@ -157,13 +160,13 @@ def build_attestation(
     suppressions = suppressions or {}
     applied = [
         stable_key_for(finding)
-        for finding in artifact.get("findings", [])
+        for finding in (artifact.get("findings") or [])
         if finding.get("suppressed")
     ]
     provenance_counts: dict[str, int] = {}
     fp_risk_counts: dict[str, int] = {}
     inferred_trust_metadata = 0
-    for finding in artifact.get("findings", []):
+    for finding in (artifact.get("findings") or []):
         trust = finding.get("trust_metadata") or {}
         provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
         fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))

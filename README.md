@@ -26,6 +26,7 @@ service.
 - Semgrep for the stable `quick` scan profile
 - Claude Code for slash-command workflows
 - Optional deep analyzers: Joern, CodeQL, Slither, Trivy, Checkov
+- Optional code-intelligence sidecar: CodeGraph for symbol search, context, and affected-file analysis
 
 ```bash
 python3 -m pip install semgrep
@@ -95,7 +96,7 @@ npm install @kuzushi/vuln-scout
 | Scope repo | `/vuln-scout:scope` | [First run](docs/workflows/first-run.md) |
 | Diff review | `/vuln-scout:diff` | [PR review](docs/workflows/pr-review.md) |
 
-### Commands (14 total)
+### Commands (15 total)
 
 <details>
 <summary>Advanced commands</summary>
@@ -103,6 +104,7 @@ npm install @kuzushi/vuln-scout
 | Command | Maturity | Purpose |
 |---|---|---|
 | `/vuln-scout:scan` | beta | Run quick, deep, or audit scan profiles |
+| `/vuln-scout:mobile-audit` | beta | Audit decompiled Android targets (jadx_out + apktool_out merged) |
 | `/vuln-scout:threats` | beta | Build STRIDE threat models |
 | `/vuln-scout:sinks` | beta | Find dangerous functions and output sinks |
 | `/vuln-scout:trace` | beta | Trace source-to-sink data flow |
@@ -130,7 +132,7 @@ The npm package exports Kuzushi tools that return structured results:
 { ok, output, artifacts, maturity, toolName }
 ```
 
-Kuzushi exposes the same 14 command names as the Claude plugin. Its structured schemas cover the common flags; advanced reviewer workflows still live in the Claude Code command prompts.
+Kuzushi exposes the same 15 command names as the Claude plugin. Its structured schemas cover the common flags; advanced reviewer workflows still live in the Claude Code command prompts.
 
 The report tool supports `sarif`, `md`, `json`, `html`, `pr-comment`, and `bundle`.
 
@@ -142,7 +144,7 @@ Use the bundled MCP server when an MCP host should call VulnScout directly:
 python3 vuln-scout/scripts/mcp_server.py
 ```
 
-The server exposes `vulnscout_scan`, `vulnscout_report`, `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, `vulnscout_verify_findings`, `vulnscout_read_artifact`, and `vulnscout_doctor`. Joern tools return structured unavailable states when Joern is not installed, and report content is opt-in to keep MCP responses compact.
+The server exposes `vulnscout_scan`, `vulnscout_report`, `vulnscout_create_cpg`, `vulnscout_joern_query`, `vulnscout_joern_discover`, `vulnscout_verify_findings`, CodeGraph sidecar tools, `vulnscout_read_artifact`, and `vulnscout_doctor`. Joern and CodeGraph tools return structured unavailable states when their binaries or indexes are not installed, and report content is opt-in to keep MCP responses compact.
 
 ## Project Structure
 
@@ -157,7 +159,7 @@ vuln-scout/
   scripts/
 ```
 
-### 32 Auto-Activated Skills
+### 35 Auto-Activated Skills
 
 The plugin ships 27 knowledge skills plus 5 task skills under `vuln-scout/skills/tasks/`.
 

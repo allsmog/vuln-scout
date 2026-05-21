@@ -51,6 +51,7 @@ import knowledge_graph as kg_mod
 import poc_generator as poc_mod
 import cache_manager as cache_mod
 import api_spec_parser
+import codegraph_adapter
 from migrate_artifact import build_trust_metadata
 
 log = logging.getLogger("vuln-scout")
@@ -70,7 +71,7 @@ LANG_EXTENSIONS: dict[str, set[str]] = {
 
 BASELINE_EXCLUDES = [
     "node_modules", "vendor", "dist", "build", "coverage",
-    "__pycache__", ".git", ".joern", ".codeql", ".claude",
+    "__pycache__", ".git", ".joern", ".codeql", ".codegraph", ".claude",
 ]
 
 WORKSPACE_MARKERS = (
@@ -445,6 +446,22 @@ def run_tools(scope: ScanScope, languages: dict[str, list[str]],
             }
             if "vuln-class-detector" not in pipeline_result.tools_succeeded:
                 pipeline_result.tools_succeeded.append("vuln-class-detector")
+        # If any per-detector exception was caught, mark the tool as
+        # `degraded` and stash the failure list on the status so the
+        # output artifact tells the caller which detectors crashed.
+        failures = list(vuln_class_detectors.LAST_DETECTOR_FAILURES)
+        if failures:
+            status = pipeline_result.tool_statuses.setdefault("vuln-class-detector", {
+                "tool": "vuln-class-detector",
+                "state": "succeeded",
+                "findings": len(extended) if extended else 0,
+            })
+            status["state"] = "degraded"
+            status["detector_failures"] = failures
+            log.warning(
+                "vuln-class-detector degraded: %d sub-detector(s) raised; see status.detector_failures",
+                len(failures),
+            )
     else:
         log.info("Quick profile: skipping extended detectors")
 
@@ -529,7 +546,8 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
                    profile: str | None = None,
                    languages: dict[str, list[str]] | None = None,
                    entry_points: list | None = None,
-                   chains: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+                   chains: list[dict[str, Any]] | None = None,
+                   chain_pattern_failures: list[dict[str, str]] | None = None) -> dict[str, Any]:
     apply_verification_levels(findings)
     for finding in findings:
         finding.setdefault("trust_metadata", build_trust_metadata(finding))
@@ -562,6 +580,11 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
         artifact["entry_points"] = entry_point_mapper.entry_points_to_dict(entry_points)
     if chains:
         artifact["chains"] = chains
+    if chain_pattern_failures:
+        # See bug 46 — setdefault doesn't replace an existing None.
+        if not isinstance(artifact.get("scan_metadata"), dict):
+            artifact["scan_metadata"] = {}
+        artifact["scan_metadata"]["chain_pattern_failures"] = chain_pattern_failures
     return artifact
 
 
@@ -804,6 +827,11 @@ def main() -> int:
     log.info("Profile maturity: quick=stable | deep=beta | audit=beta")
     log.info("Scan profile: %s (%s)", args.profile, SCAN_PROFILES[args.profile]["description"])
     log.info("Running tools: %s", ", ".join(available))
+    codegraph_status = codegraph_adapter.status(scope.target_path)
+    if codegraph_status.get("state") == "succeeded":
+        log.info("CodeGraph sidecar: initialized")
+    elif codegraph_status.get("state") not in {"unavailable", "not_initialized"}:
+        log.info("CodeGraph sidecar: %s", codegraph_status.get("state"))
     tool_result = run_tools(
         scope, languages, tools, rules, frameworks, custom_rules_dir,
         run_extended_detectors=args.profile != "quick" or args.extended_detectors,
@@ -816,6 +844,7 @@ def main() -> int:
             findings, scope, tool_result.tools_succeeded,
             profile=args.profile, languages=languages, entry_points=entry_points,
         )
+        tool_result.tool_statuses["codegraph"] = codegraph_status
         attach_tool_status(artifact, tools, available, tool_result)
         artifact["business_context"] = biz_context_mod.context_to_dict(biz_context)
         errors = validate_findings_artifact(artifact)
@@ -867,6 +896,9 @@ def main() -> int:
     # Stage 4e: Detect attack chains
     svc_graph = service_graph_mod.build_service_graph(str(scope.target_path))
     findings, chains = chain_detector.detect_chains(findings, svc_graph)
+    # Capture any per-pattern failures for the output artifact so
+    # operators see which chain patterns crashed (mirrors mobile_scan).
+    chain_pattern_failures = list(getattr(chain_detector, "LAST_PATTERN_FAILURES", []) or [])
 
     # Stage 4f: Business context CVSS adjustment
     for f in findings:
@@ -885,7 +917,9 @@ def main() -> int:
     artifact = build_artifact(
         findings, scope, tool_result.tools_succeeded,
         profile=args.profile, languages=languages, entry_points=entry_points, chains=chains,
+        chain_pattern_failures=chain_pattern_failures or None,
     )
+    tool_result.tool_statuses["codegraph"] = codegraph_status
     attach_tool_status(artifact, tools, available, tool_result)
 
     # Add business context to artifact

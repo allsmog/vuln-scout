@@ -14,11 +14,12 @@ Manifest: `vuln-scout/.claude-plugin/plugin.json`
 | `/vuln-scout:scope` | stable | `<path>`, `--list`, `--include`, `--exclude`, `--compress`, `--name` |
 | `/vuln-scout:diff` | stable | `<base-ref>`, `[head-ref]`, `--tools`, `--format`, `--fail-on-regression` |
 
-### Commands (14 total)
+### Commands (15 total)
 
 | Command | Maturity | Purpose |
 |---|---|---|
 | `/vuln-scout:scan` | beta | Run quick, deep, or audit scanner profiles |
+| `/vuln-scout:mobile-audit` | beta | Audit decompiled Android targets (jadx_out + apktool_out merged) |
 | `/vuln-scout:threats` | beta | Application understanding and STRIDE modeling |
 | `/vuln-scout:sinks` | beta | Search for dangerous functions and output sinks |
 | `/vuln-scout:trace` | beta | Trace source-to-sink evidence |
@@ -30,12 +31,12 @@ Manifest: `vuln-scout/.claude-plugin/plugin.json`
 
 ## Skills
 
-### Skills (32 Auto-Activated)
+### Skills (35 Auto-Activated)
 
 | Group | Count | Purpose |
 |---|---:|---|
 | Task skills | 5 | Front-door workflows for audit, PR review, finding verification, evidence packaging, and scoping |
-| Knowledge skills | 27 | Vulnerability classes, frameworks, CPG analysis, threat modeling, compliance, and language-specific patterns |
+| Knowledge skills | 30 | Vulnerability classes, frameworks, CPG analysis, threat modeling, compliance, language-specific patterns, mobile Android + iOS audit, mobile payment tokenization |
 
 Task skills live in `skills/tasks/`:
 
@@ -59,6 +60,7 @@ Task skills live in `skills/tasks/`:
 | `poc-developer` | Draft PoCs where explicitly safe |
 | `patch-advisor` | Recommend remediations |
 | `attack-researcher` | Research exploit paths and chaining |
+| `mobile-auditor` | Triage `findings.json` from decompiled Android/iOS targets and rank chains |
 
 ## Hooks
 

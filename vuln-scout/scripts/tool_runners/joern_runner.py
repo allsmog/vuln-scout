@@ -60,8 +60,11 @@ def is_available() -> bool:
 
 
 def _set_discovery_status(status: dict[str, Any]) -> None:
-    global LAST_DISCOVERY_STATUS
-    LAST_DISCOVERY_STATUS = status
+    # Mutate in place — rebinding would orphan any caller that did
+    # `from joern_runner import LAST_DISCOVERY_STATUS`. Same fix
+    # pattern as bug 34 (chain_detector) / bug 35 (vuln_class_detectors).
+    LAST_DISCOVERY_STATUS.clear()
+    LAST_DISCOVERY_STATUS.update(status)
 
 
 # ---------------------------------------------------------------------------
@@ -113,9 +116,15 @@ def _create_cpgs(target: str, cache_dir: str = ".joern") -> tuple[dict[str, str]
             for lang, status in payload.get("languages", {}).items()
         }
         return cpgs, {"state": "succeeded" if cpgs else "skipped", "languages": language_status}
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        log.warning("CPG creation error")
-        return {}, {"state": "timed_out", "languages": {}, "reason": "CPG creation timed out or script was unavailable"}
+    except subprocess.TimeoutExpired:
+        log.warning("CPG creation timed out")
+        return {}, {"state": "timed_out", "languages": {}, "reason": "CPG creation timed out"}
+    except FileNotFoundError:
+        # joern binary missing on PATH — distinct from a timeout. The
+        # combined branch labeled this as "timed_out", which obscured
+        # the actual root cause (operator hasn't installed joern).
+        log.warning("Joern binary not found — install joern or fix PATH")
+        return {}, {"state": "missing", "languages": {}, "reason": "joern binary not found on PATH"}
     except json.JSONDecodeError as exc:
         log.warning("CPG creation returned invalid JSON: %s", exc)
         return {}, {"state": "failed", "languages": {}, "reason": "invalid CPG creation output"}
@@ -334,7 +343,11 @@ def discover_with_status(
     timeout: int = 300,
 ) -> dict[str, Any]:
     findings = discover(target, cache_dir=cache_dir, timeout=timeout)
-    return {"findings": findings, "status": LAST_DISCOVERY_STATUS}
+    # Return a SNAPSHOT of the status — without dict(), a subsequent
+    # call to discover() would mutate the same dict the caller is
+    # holding via the returned reference, retroactively rewriting the
+    # earlier scan's status.
+    return {"findings": findings, "status": dict(LAST_DISCOVERY_STATUS)}
 
 
 # ---------------------------------------------------------------------------

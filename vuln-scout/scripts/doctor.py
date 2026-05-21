@@ -111,6 +111,7 @@ def collect(check_network: bool = False, include_versions: bool = False) -> dict
         _check_tool("slither", "slither", ["--version"], "deep", "Solidity analysis", include_versions),
         _check_secret_scanner(include_versions),
         _check_tool("repomix", "repomix", ["--version"], "Claude Code plugin", "large-codebase compression", include_versions),
+        _check_tool("codegraph", "codegraph", ["--version"], "Claude Code plugin", "optional code intelligence sidecar", include_versions),
         _check_tool("trivy", "trivy", ["--version"], "deep", "container/IaC dependency context", include_versions),
         _check_tool("checkov", "checkov", ["--version"], "deep", "IaC checks", include_versions),
     ]
