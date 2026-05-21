@@ -188,6 +188,24 @@ class PathHardeningTests(unittest.TestCase):
         self.assertEqual(payload["languages"]["java"]["state"], "timed_out")
         self.assertIn("1 seconds", payload["languages"]["java"]["reason"])
 
+    def test_create_cpg_all_languages_returns_nonzero_without_cpgs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir)
+            (repo / "Vault.sol").write_text("contract Vault {}\n")
+            argv = ["create_cpg.py", str(repo), "--all-languages", "--json"]
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.object(create_cpg.shutil, "which", return_value="/usr/bin/joern-parse"):
+                    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                        exit_code = create_cpg.main()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(payload["cpgs"], {})
+        self.assertEqual(payload["languages"]["solidity"]["state"], "unsupported")
+
     def test_create_cpg_sets_astgen_bin_for_homebrew_javascript(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

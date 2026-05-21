@@ -293,7 +293,7 @@ def main() -> int:
         else:
             for path in cpgs.values():
                 print(path)
-        return 0 if cpgs or statuses else 1
+        return 0 if cpgs else 1
 
     language = args.language or detect_language(source_dir)
     if language == "unknown":
