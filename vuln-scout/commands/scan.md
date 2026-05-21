@@ -18,7 +18,7 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 
 | Flag | Effect |
 |------|--------|
-| `--profile` | Use `quick` (local deterministic rules), `deep` (installed analyzers), or `audit` (Claude-assisted baseline) |
+| `--profile` | Use `quick` (local deterministic rules), `deep` (installed analyzers), or `audit` (deterministic baseline for Claude-driven review) |
 | `--tools` | Run `semgrep`, `codeql`, `joern`, or a comma-separated combination |
 | `--rules` | Semgrep ruleset override |
 | `--workspace` | Resolve a monorepo workspace before scanning |
