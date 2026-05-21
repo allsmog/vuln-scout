@@ -1,6 +1,6 @@
 ---
 name: framework-patterns
-description: This skill should be used when the user asks about "framework vulnerabilities", "Next.js security", "Flask security", "Django security", "Rails security", "Spring security", "GraphQL security", "Server Actions", "render_template_string", "SSTI patterns", "redirect SSRF", "mass assignment", "actuator exposure", "SpEL injection", "introspection", or needs to identify framework-specific vulnerability patterns during whitebox pentesting.
+description: This skill should be used when the user asks about "framework vulnerabilities", "Next.js security", "Flask security", "Django security", "Rails security", "Spring security", "GraphQL security", "Server Actions", "render_template_string", "SSTI patterns", "redirect SSRF", "mass assignment", "actuator exposure", "SpEL injection", "introspection", or needs to identify framework-specific vulnerability patterns during whitebox security review.
 ---
 
 # Framework Security Patterns

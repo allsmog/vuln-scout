@@ -1,7 +1,7 @@
 ---
 name: scan
 description: "[beta] Run quick, deep, or audit scan profiles and emit a shared findings artifact"
-argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
+argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html|pr-comment|badge] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
 allowed-tools:
   - Bash
   - Glob
@@ -26,7 +26,7 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 | `--diff-base` | Backward-compatible alias for diff scans against a git ref |
 | `--exclude` | Extra exclusions |
 | `--suppressions` | Apply `.vuln-scout-ignore` after aggregation |
-| `--format` | Emit `json`, `sarif`, or `md` at the end |
+| `--format` | Emit `json`, `sarif`, `md`, `html`, `pr-comment`, or `badge` at the end |
 | `--fail-on` | Exit `2` when unsuppressed `finding` entries exist at or above the severity |
 | `--output` | Save the final emitted artifact to a file |
 | `--json` | Shortcut for `--format json` |
@@ -184,7 +184,7 @@ Example:
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.2.0",
   "scan_id": "uuid-v4",
   "project_path": ".",
   "completed_at": "2026-03-24T00:00:00Z",

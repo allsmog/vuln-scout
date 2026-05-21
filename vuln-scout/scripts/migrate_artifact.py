@@ -129,10 +129,12 @@ def migrate_to_1_2_0(artifact: dict[str, Any]) -> dict[str, Any]:
     migrated = copy.deepcopy(artifact)
     migrated["schema_version"] = TARGET_SCHEMA_VERSION
     for finding in migrated.get("findings", []):
-        finding["trust_metadata"] = _merge_trust_metadata(
+        trust_metadata = _merge_trust_metadata(
             finding.get("trust_metadata"),
             build_trust_metadata(finding),
         )
+        trust_metadata.setdefault("inferred_from_legacy_artifact", True)
+        finding["trust_metadata"] = trust_metadata
     return migrated
 
 

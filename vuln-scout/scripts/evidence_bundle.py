@@ -162,10 +162,13 @@ def build_attestation(
     ]
     provenance_counts: dict[str, int] = {}
     fp_risk_counts: dict[str, int] = {}
+    inferred_trust_metadata = 0
     for finding in artifact.get("findings", []):
         trust = finding.get("trust_metadata") or {}
         provenance = str((trust.get("provenance") or {}).get("origin", "unknown"))
         fp_risk = str((trust.get("false_positive_risk") or {}).get("level", "unknown"))
+        if trust.get("inferred_from_legacy_artifact"):
+            inferred_trust_metadata += 1
         provenance_counts[provenance] = provenance_counts.get(provenance, 0) + 1
         fp_risk_counts[fp_risk] = fp_risk_counts.get(fp_risk, 0) + 1
     return {
@@ -187,6 +190,7 @@ def build_attestation(
         "trust_model_summary": {
             "provenance": dict(sorted(provenance_counts.items())),
             "fp_risk": dict(sorted(fp_risk_counts.items())),
+            "inferred_from_legacy_artifact": inferred_trust_metadata,
         },
         "bundle_files": [
             "findings.json",

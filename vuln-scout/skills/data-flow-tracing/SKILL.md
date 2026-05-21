@@ -1,6 +1,6 @@
 ---
 name: Data Flow Tracing
-description: This skill should be used when the user asks to "trace data flow", "follow user input", "source to sink analysis", "track variable", "find input sources", "taint analysis", or needs to understand how user-controlled data flows through an application during whitebox pentesting.
+description: This skill should be used when the user asks to "trace data flow", "follow user input", "source to sink analysis", "track variable", "find input sources", "taint analysis", or needs to understand how user-controlled data flows through an application during whitebox security review.
 version: 1.0.0
 ---
 

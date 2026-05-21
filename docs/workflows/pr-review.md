@@ -15,7 +15,7 @@ Verify only the new or changed findings:
 Render the Markdown payload for a PR comment:
 
 ```text
-/vuln-scout:report --format md
+/vuln-scout:report --format pr-comment --output pr-comment.md
 ```
 
 For review handoff, package the evidence bundle after verification:

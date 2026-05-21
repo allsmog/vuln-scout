@@ -147,6 +147,7 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn("contributors", trust["provenance"])
         self.assertIn("exploitability_status", trust)
         self.assertIn("false_positive_risk", trust)
+        self.assertIs(trust["inferred_from_legacy_artifact"], True)
         self.assertEqual(artifact_utils.validate_findings_artifact(migrated), [])
 
     def test_stable_key_deterministic(self) -> None:

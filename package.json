@@ -1,7 +1,7 @@
 {
   "name": "@kuzushi/vuln-scout",
   "version": "3.2.0",
-  "description": "AI-powered whitebox pentesting plugin for Kuzushi",
+  "description": "AI-assisted whitebox security review plugin for Claude Code and Kuzushi",
   "type": "module",
   "main": "./kuzushi-module.js",
   "exports": "./kuzushi-module.js",
@@ -14,6 +14,7 @@
     "!demo/**/.claude/**",
     "!demo/**/.vuln-scout/**",
     "docs/**",
+    "!docs/superpowers/**",
     "kuzushi-module.js",
     "module.manifest.json",
     "vuln-scout.png",

@@ -1,6 +1,6 @@
 ---
 name: Business Logic Analysis
-description: This skill should be used when the user asks about "business logic", "workflow vulnerability", "trust boundary", "state machine", "authorization bypass", "multi-step process", "workflow bypass", "application logic flaw", or needs to identify business logic vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "business logic", "workflow vulnerability", "trust boundary", "state machine", "authorization bypass", "multi-step process", "workflow bypass", "application logic flaw", or needs to identify business logic vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 
@@ -17,7 +17,7 @@ Provide comprehensive knowledge of business logic vulnerabilities - flaws that a
 ## When to Use
 
 Activate this skill when:
-- Beginning a whitebox pentest (understand before hunt)
+- Beginning a whitebox security review (understand before hunt)
 - Analyzing multi-step workflows (checkout, registration, auth)
 - Reviewing authorization and access control
 - Looking for ways to abuse intended functionality

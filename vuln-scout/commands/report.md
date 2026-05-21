@@ -1,7 +1,7 @@
 ---
 name: report
-description: "[stable] Generate report output from `.claude/findings.json` in markdown, json, SARIF, interactive HTML, or evidence bundle format"
-argument-hint: "[output_file] [--format md|json|sarif|html|bundle] [--suppressions path] [--fail-on severity]"
+description: "[stable] Generate report output from `.claude/findings.json` in markdown, json, SARIF, interactive HTML, PR comment, or evidence bundle format"
+argument-hint: "[output_file] [--format md|json|sarif|html|pr-comment|bundle] [--suppressions path] [--fail-on severity]"
 allowed-tools:
   - Read
   - Write
@@ -27,7 +27,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
 
 | Flag | Effect |
 |------|--------|
-| `--format` | Output `md` (default), `json`, `sarif`, `html`, or `bundle` |
+| `--format` | Output `md` (default), `json`, `sarif`, `html`, `pr-comment`, or `bundle` |
 | `--suppressions` | Apply `.vuln-scout-ignore` suppressions before rendering |
 | `--fail-on` | Exit with code `2` if unsuppressed findings exist at or above the given severity |
 
@@ -133,6 +133,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
 - `hotspot` entries shown in a separate muted table
 - truncates at 200 findings by default (configurable via `max_findings`)
 
+## PR comment output
+
+When `--format pr-comment` is used:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
+  .claude/findings.json \
+  --format pr-comment \
+  --output pr-comment.md
+```
+
+- renders a compact Markdown payload intended for GitHub PR comments
+- includes severity, trust, false-positive risk, and exploitability labels
+- keeps output within the configured PR comment budget by summarizing overflow findings
+
 ## Evidence bundle output
 
 When `--format bundle` is used:
@@ -146,7 +161,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/report.py" \
 ```
 
 - `--output` is required and must be a directory path
-- writes `findings.json`, `findings.sarif`, `vex.json`, `attestation.json`, and `README.md`
+- writes `findings.json`, `findings.sarif`, `vex.json`, `attestation.json`, `report.html`, and `README.md`
 - `findings.json` is the validated findings artifact after suppressions
 - `findings.sarif` uses the same SARIF renderer as `--format sarif`
 - `vex.json` contains CycloneDX-style exploitability statements for unsuppressed reportable findings

@@ -86,8 +86,8 @@ def validate() -> list[str]:
         errors.append("kuzushi-module.js must export version from package.json via PACKAGE_VERSION")
     if re.search(r'version:\s*"[0-9]+\.[0-9]+\.[0-9]+"', kuzushi_text):
         errors.append("kuzushi-module.js must not hardcode a semantic version")
-    if not re.search(r'format:\s*\{[^}]*enum:\s*\[[^\]]*"html"[^\]]*"bundle"[^\]]*\]', kuzushi_text, re.S):
-        errors.append("kuzushi-module.js report format enum must include html and bundle")
+    if not re.search(r'format:\s*\{[^}]*enum:\s*\[[^\]]*"html"[^\]]*"pr-comment"[^\]]*"bundle"[^\]]*\]', kuzushi_text, re.S):
+        errors.append("kuzushi-module.js report format enum must include html, pr-comment, and bundle")
 
     if ".claude-plugin/plugin.json" not in readmes["claude"]:
         errors.append("CLAUDE.md must describe the Claude-first plugin layout")

@@ -140,5 +140,5 @@ Log every hypothesis and its outcome in a research journal. Use disproven hypoth
 - **Never execute** code against production systems
 - **Never modify** source code or configuration
 - **Read-only** investigation -- your tools are Read, Grep, and Glob
-- If you identify a critical vulnerability, note it immediately rather than continuing to explore
+- If you identify a critical vulnerability, record it immediately and continue coverage-first exploration unless the user explicitly asks you to stop
 - Focus on the target codebase, not external dependencies (those are covered by Trivy/npm audit)

@@ -1,6 +1,6 @@
 ---
 name: Cloud-Native Security
-description: This skill should be used when the user asks about "cloud security", "AWS security", "GCP security", "Azure security", "Kubernetes security", "IMDS", "instance metadata", "S3 bucket policy", "IAM", "serverless security", "Lambda security", "container security", "cloud misconfiguration", "SSRF to cloud metadata", or needs to identify cloud-native security issues during whitebox pentesting.
+description: This skill should be used when the user asks about "cloud security", "AWS security", "GCP security", "Azure security", "Kubernetes security", "IMDS", "instance metadata", "S3 bucket policy", "IAM", "serverless security", "Lambda security", "container security", "cloud misconfiguration", "SSRF to cloud metadata", or needs to identify cloud-native security issues during whitebox security review.
 version: 1.0.0
 ---
 

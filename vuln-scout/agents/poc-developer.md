@@ -3,7 +3,7 @@ name: poc-developer
 description: >-
   Use this agent when the user wants to "write an exploit", "create a PoC",
   "develop proof of concept", "automate the attack", or needs help creating
-  exploit scripts during Phase 3 of whitebox pentesting.
+  exploit scripts during Phase 3 of whitebox security review.
 model: inherit
 color: magenta
 tools:

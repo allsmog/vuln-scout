@@ -1,6 +1,6 @@
 ---
 name: Cryptographic Failures
-description: This skill should be used when the user asks about "cryptographic failures", "weak encryption", "hardcoded secrets", "insecure random", "MD5", "SHA1", "weak hashing", or needs to find crypto-related vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "cryptographic failures", "weak encryption", "hardcoded secrets", "insecure random", "MD5", "SHA1", "weak hashing", or needs to find crypto-related vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 

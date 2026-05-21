@@ -1,6 +1,6 @@
 ---
 name: Vulnerability Patterns
-description: This skill should be used when the user asks about "vulnerability patterns", "how to find SQL injection", "XSS patterns", "command injection techniques", "OWASP vulnerabilities", "common web vulnerabilities", "exploitation patterns", or needs to understand how specific vulnerability classes work during whitebox pentesting.
+description: This skill should be used when the user asks about "vulnerability patterns", "how to find SQL injection", "XSS patterns", "command injection techniques", "OWASP vulnerabilities", "common web vulnerabilities", "exploitation patterns", or needs to understand how specific vulnerability classes work during whitebox security review.
 version: 1.0.0
 ---
 

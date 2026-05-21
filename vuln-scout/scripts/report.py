@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a VulnScout findings artifact into JSON, SARIF, Markdown, or HTML."""
+"""Render a VulnScout findings artifact into JSON, SARIF, Markdown, HTML, PR comment, or bundle output."""
 from __future__ import annotations
 
 import argparse
@@ -20,6 +20,7 @@ from evidence_bundle import generate as generate_bundle, input_digest
 from html_report import generate as generate_html
 from markdown_report import generate as generate_markdown
 from migrate_artifact import migrate_to_1_2_0
+from pr_comment import generate as generate_pr_comment
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +42,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=["md", "json", "sarif", "html", "bundle"],
+        choices=["md", "json", "sarif", "html", "pr-comment", "bundle"],
         default="md",
         help="Output format (default: md)",
     )
@@ -69,6 +70,8 @@ def _render_content(artifact: dict, fmt: str) -> tuple[str | dict, bool]:
         return to_sarif(artifact), True
     if fmt == "html":
         return generate_html(artifact), False
+    if fmt == "pr-comment":
+        return generate_pr_comment(artifact), False
     return generate_markdown(artifact), False
 
 

@@ -1,6 +1,6 @@
 ---
 name: Sandbox Escapes
-description: This skill should be used when the user asks about "sandbox escape", "vm escape", "template injection to RCE", "SSTI exploitation", "vm2 bypass", "restricted execution bypass", "sandbox breakout", or needs to identify sandbox escape and template engine exploitation techniques during whitebox pentesting.
+description: This skill should be used when the user asks about "sandbox escape", "vm escape", "template injection to RCE", "SSTI exploitation", "vm2 bypass", "restricted execution bypass", "sandbox breakout", or needs to identify sandbox escape and template engine exploitation techniques during whitebox security review.
 version: 1.0.0
 ---
 

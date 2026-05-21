@@ -1,6 +1,6 @@
 ---
 name: Cache Poisoning
-description: This skill should be used when the user asks about "cache poisoning", "web cache deception", "CDN cache", "proxy cache", "nginx cache", "varnish", "cache key manipulation", "response caching", or needs to find cache-related vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "cache poisoning", "web cache deception", "CDN cache", "proxy cache", "nginx cache", "varnish", "cache key manipulation", "response caching", or needs to find cache-related vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 

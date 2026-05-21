@@ -1,6 +1,6 @@
 ---
 name: Logging Failures
-description: This skill should be used when the user asks about "logging failures", "log injection", "insufficient logging", "audit logging", "security logging", "CWE-117", or needs to find logging-related vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "logging failures", "log injection", "insufficient logging", "audit logging", "security logging", "CWE-117", or needs to find logging-related vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 

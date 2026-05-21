@@ -1,6 +1,6 @@
 ---
 name: OWASP API Security Top 10
-description: This skill should be used when the user asks about "API security", "OWASP API Top 10", "BOLA", "broken object level authorization", "API authentication", "mass assignment", "GraphQL security", "gRPC security", "rate limiting", "API abuse", "REST API vulnerabilities", or needs to identify API-specific security issues during whitebox pentesting.
+description: This skill should be used when the user asks about "API security", "OWASP API Top 10", "BOLA", "broken object level authorization", "API authentication", "mass assignment", "GraphQL security", "gRPC security", "rate limiting", "API abuse", "REST API vulnerabilities", or needs to identify API-specific security issues during whitebox security review.
 version: 1.0.0
 ---
 

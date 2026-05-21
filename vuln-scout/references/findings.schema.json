@@ -344,6 +344,10 @@
               "confidence_reason": {
                 "type": "string",
                 "maxLength": 280
+              },
+              "inferred_from_legacy_artifact": {
+                "type": "boolean",
+                "description": "True when v1.2.0 trust metadata was inferred during migration from an older artifact."
               }
             }
           },

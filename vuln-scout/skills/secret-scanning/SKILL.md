@@ -1,6 +1,6 @@
 ---
 name: Secret Scanning
-description: This skill should be used when the user asks about "secret scanning", "find secrets", "hardcoded credentials", "leaked API keys", "git history secrets", "credential scanning", "detect passwords in code", or needs to identify secrets and credentials in source code or git history during whitebox pentesting.
+description: This skill should be used when the user asks about "secret scanning", "find secrets", "hardcoded credentials", "leaked API keys", "git history secrets", "credential scanning", "detect passwords in code", or needs to identify secrets and credentials in source code or git history during whitebox security review.
 version: 1.0.0
 ---
 

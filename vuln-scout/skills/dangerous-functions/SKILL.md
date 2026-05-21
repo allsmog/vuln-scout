@@ -1,6 +1,6 @@
 ---
 name: Dangerous Functions
-description: This skill should be used when the user asks about "dangerous functions", "security sinks", "what functions are dangerous in PHP/Java/Python", "find vulnerable functions", "code execution functions", "command injection sinks", "SQL injection functions", or needs to identify security-sensitive functions in source code during whitebox pentesting.
+description: This skill should be used when the user asks about "dangerous functions", "security sinks", "what functions are dangerous in PHP/Java/Python", "find vulnerable functions", "code execution functions", "command injection sinks", "SQL injection functions", or needs to identify security-sensitive functions in source code during whitebox security review.
 version: 1.0.0
 ---
 
@@ -13,7 +13,7 @@ Provide comprehensive knowledge of security-sensitive functions (sinks) across p
 ## When to Use
 
 Activate this skill during:
-- Code review phase of whitebox pentesting
+- Code review phase of whitebox security review
 - Searching for potential vulnerability entry points
 - Building grep patterns for sink identification
 - Understanding language-specific security risks

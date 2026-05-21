@@ -1,6 +1,6 @@
 ---
 name: nextjs-react
-description: This skill should be used when the user asks about "Next.js security", "React security", "Server Components", "Server Actions", "Route Handlers", "RSC vulnerabilities", "SSR security", or needs comprehensive Next.js/React security analysis during whitebox pentesting.
+description: This skill should be used when the user asks about "Next.js security", "React security", "Server Components", "Server Actions", "Route Handlers", "RSC vulnerabilities", "SSR security", or needs comprehensive Next.js/React security analysis during whitebox security review.
 ---
 
 # Next.js/React Security Analysis

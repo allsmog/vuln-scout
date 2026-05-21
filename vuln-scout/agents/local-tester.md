@@ -3,7 +3,7 @@ name: local-tester
 description: >-
   Use this agent when the user wants to "test a vulnerability", "confirm
   exploitation", "debug the application", "verify the finding", or needs
-  guidance on dynamic testing during Phase 2 of whitebox pentesting.
+  guidance on dynamic testing during Phase 2 of whitebox security review.
 model: inherit
 color: yellow
 tools:

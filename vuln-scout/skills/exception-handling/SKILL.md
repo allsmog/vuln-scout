@@ -1,6 +1,6 @@
 ---
 name: Exception Handling Vulnerabilities
-description: This skill should be used when the user asks about "XXE", "XML External Entity", "error handling", "exception disclosure", "stack trace exposure", "improper error handling", or needs to find exception-related vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "XXE", "XML External Entity", "error handling", "exception disclosure", "stack trace exposure", "improper error handling", or needs to find exception-related vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 

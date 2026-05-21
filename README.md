@@ -12,19 +12,39 @@
   <a href="docs/feature-maturity.md"><img alt="auto fix experimental" src="https://img.shields.io/badge/auto--fix-experimental-6b7280"></a>
 </p>
 
-Install: `claude plugin install vuln-scout`
+VulnScout's stable promise is an offline quick scan, shared `findings.json` with stable keys and hotspot-aware findings, SARIF/Markdown/HTML/PR-comment/bundle reports, suppressions, and a CI fail-on gate. It writes `audit-plan.md` and `review-ledger.json` for reviewer-driven workflows and exposes structured Claude Code and Kuzushi surfaces.
 
-Run: `/vuln-scout:full-audit /path/to/code`
+## Prerequisites
 
-VulnScout's stable promise is an offline quick scan, shared `findings.json` with stable keys and hotspot-aware findings, SARIF/Markdown/HTML/bundle reports, suppressions, and a CI fail-on gate. It writes `audit-plan.md` and `review-ledger.json` for reviewer-driven workflows and exposes parity to Claude Code and Kuzushi.
+- Python 3.9 or newer
+- Semgrep for the stable `quick` scan profile
+- Claude Code for slash-command workflows
+- Optional deep analyzers: Joern, CodeQL, Slither, Trivy, Checkov
+
+```bash
+python3 -m pip install semgrep
+```
 
 ## 5-Minute Demo
 
-```bash
-python3 vuln-scout/scripts/doctor.py --strict
-python3 vuln-scout/scripts/scan_orchestrator.py demo/vulnerable-app --profile quick --output /tmp/vuln-scout-demo.json
-python3 vuln-scout/scripts/report.py /tmp/vuln-scout-demo.json --format html --output report.html
-```
+1. Install the runtime prerequisite:
+
+   ```bash
+   python3 -m pip install semgrep
+   ```
+
+2. Validate the local runtime:
+
+   ```bash
+   python3 vuln-scout/scripts/doctor.py --strict
+   ```
+
+3. Scan the bundled vulnerable app and render an HTML report:
+
+   ```bash
+   python3 vuln-scout/scripts/scan_orchestrator.py demo/vulnerable-app --profile quick --output /tmp/vuln-scout-demo.json
+   python3 vuln-scout/scripts/report.py /tmp/vuln-scout-demo.json --format html --output report.html
+   ```
 
 Expected quick-profile result: four findings from bundled local rules.
 
@@ -51,7 +71,7 @@ See [feature maturity](docs/feature-maturity.md) for the full stability matrix.
 
 ## Install
 
-Primary paths are documented in [docs/install.md](docs/install.md).
+Primary paths are documented in [docs/install.md](docs/install.md). The quickest product check is the demo above; after that, use the Claude Code plugin command path.
 
 ```bash
 claude plugin install vuln-scout
@@ -93,7 +113,7 @@ npm install @kuzushi/vuln-scout
 | Surface | Stable | Beta | Experimental |
 |---|---|---|---|
 | Profiles | quick | deep, audit | custom-rules |
-| Reports | SARIF, Markdown, HTML, bundle | PR comment | generated PoCs |
+| Reports | SARIF, Markdown, HTML, PR comment, bundle | generated PoCs | generated exploit harnesses |
 | Workflows | full-audit, verify, report, scope, diff | scan, threats, sinks, trace, propagate | create-rule, mutate, auto-fix |
 
 ## Kuzushi Integration
@@ -104,7 +124,9 @@ The npm package exports Kuzushi tools that return structured results:
 { ok, output, artifacts, maturity, toolName }
 ```
 
-The report tool supports `sarif`, `md`, `json`, `html`, and `bundle`.
+Kuzushi exposes the same 14 command names as the Claude plugin. Its structured schemas cover the common flags; advanced reviewer workflows still live in the Claude Code command prompts.
+
+The report tool supports `sarif`, `md`, `json`, `html`, `pr-comment`, and `bundle`.
 
 ## Project Structure
 

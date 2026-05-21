@@ -1,6 +1,6 @@
 ---
 name: Security Misconfiguration
-description: This skill should be used when the user asks about "security misconfiguration", "default credentials", "debug mode", "security headers", "exposed endpoints", "TLS configuration", or needs to find configuration-related vulnerabilities during whitebox pentesting.
+description: This skill should be used when the user asks about "security misconfiguration", "default credentials", "debug mode", "security headers", "exposed endpoints", "TLS configuration", or needs to find configuration-related vulnerabilities during whitebox security review.
 version: 1.0.0
 ---
 

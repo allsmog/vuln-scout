@@ -1,5 +1,16 @@
 # Install VulnScout
 
+## Prerequisites
+
+- Python 3.9 or newer
+- Semgrep for the stable `quick` scan profile
+- Claude Code for slash-command workflows
+- Optional deep analyzers: Joern, CodeQL, Slither, Trivy, Checkov
+
+```bash
+python3 -m pip install semgrep
+```
+
 ## Marketplace Install
 
 ```bash
@@ -41,7 +52,14 @@ ln -s /path/to/vuln-scout/vuln-scout .claude/plugins/vuln-scout
 python3 vuln-scout/scripts/doctor.py --strict
 ```
 
-Then run the canonical first audit:
+Then run the canonical five-minute demo:
+
+```bash
+python3 vuln-scout/scripts/scan_orchestrator.py demo/vulnerable-app --profile quick --output /tmp/vuln-scout-demo-findings.json
+python3 vuln-scout/scripts/report.py /tmp/vuln-scout-demo-findings.json --format html --output report.html
+```
+
+Expected quick-profile result: two high findings and two medium findings. After the script path works, use the Claude Code workflow:
 
 ```text
 /vuln-scout:full-audit demo/vulnerable-app

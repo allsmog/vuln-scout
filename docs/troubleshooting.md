@@ -50,8 +50,13 @@ python3 vuln-scout/scripts/scan_orchestrator.py . --profile deep
 
 ## Claude Plugin Installation
 
-Claude Code discovers plugins from `.claude/plugins/` inside the project being
-reviewed.
+For normal local testing from this checkout, use the plugin root directly:
+
+```bash
+claude --plugin-dir ./vuln-scout
+```
+
+When developing against a separate project under review, Claude Code can also discover plugins from `.claude/plugins/` inside that project.
 
 ```bash
 mkdir -p .claude/plugins

@@ -326,12 +326,12 @@ class KuzushiModuleTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         tools = json.loads(result.stdout)
         self.assertEqual(tools, sorted([
-            "vuln-scout:audit",
+            "vuln-scout:full-audit",
             "vuln-scout:scan",
             "vuln-scout:trace",
             "vuln-scout:verify",
             "vuln-scout:sinks",
-            "vuln-scout:fix",
+            "vuln-scout:auto-fix",
             "vuln-scout:report",
             "vuln-scout:threats",
             "vuln-scout:scope",
@@ -371,6 +371,7 @@ class PackageContentsTests(unittest.TestCase):
         self.assertIn("demo/vulnerable-app/README.md", paths)
         self.assertIn("docs/feature-maturity.md", paths)
         self.assertIn("docs/ci/github-actions.yml", paths)
+        self.assertFalse(any(path.startswith("docs/superpowers/") for path in paths))
         self.assertNotIn("tests/test_cli_workflows.py", paths)
         self.assertFalse(any("/.claude/" in path for path in paths))
         self.assertFalse(any("/.vuln-scout/" in path for path in paths))
@@ -402,6 +403,21 @@ class ReportCliTests(unittest.TestCase):
             self.assertEqual(html_result.returncode, 0, html_result.stderr)
             self.assertIn("VulnScout Scan Report", md_path.read_text())
             self.assertIn("<html", html_path.read_text().lower())
+
+    def test_report_cli_renders_pr_comment(self):
+        artifact = FIXTURES_DIR / "sample-findings-v1_2_0.json"
+        script = SCRIPTS_DIR / "report.py"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            comment_path = Path(tmpdir) / "pr-comment.md"
+            result = subprocess.run(
+                [sys.executable, str(script), str(artifact), "--format", "pr-comment", "--output", str(comment_path)],
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("[T:", comment_path.read_text())
 
     def test_report_cli_fail_on_returns_exit_2(self):
         artifact = FIXTURES_DIR / "sample-findings.json"
@@ -435,7 +451,7 @@ class ReportCliTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            for name in ("findings.json", "findings.sarif", "vex.json", "attestation.json", "README.md"):
+            for name in ("findings.json", "findings.sarif", "vex.json", "attestation.json", "report.html", "README.md"):
                 self.assertTrue((output_dir / name).exists(), name)
 
             findings = json.loads((output_dir / "findings.json").read_text())
@@ -448,6 +464,7 @@ class ReportCliTests(unittest.TestCase):
             self.assertEqual(vex["vulnerabilities"][0]["analysis"]["state"], "affected")
             self.assertEqual(attestation["suppressions"]["provided"], 1)
             self.assertEqual(attestation["suppressions"]["applied"], 1)
+            self.assertEqual(attestation["trust_model_summary"]["inferred_from_legacy_artifact"], 3)
             self.assertRegex(attestation["source_artifact_sha256"], r"^[0-9a-f]{64}$")
 
     def test_report_cli_bundle_requires_output_directory(self):

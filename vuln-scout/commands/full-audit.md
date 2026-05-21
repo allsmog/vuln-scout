@@ -1104,7 +1104,7 @@ After generating the markdown report, you MUST also create a structured JSON fil
 **Artifact contract** (REQUIRED - follow the shared schema exactly):
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.2.0",
   "scan_id": "uuid-v4",
   "project_path": "/path/to/project",
   "completed_at": "2026-03-24T00:00:00Z",
@@ -1133,6 +1133,18 @@ After generating the markdown report, you MUST also create a structured JSON fil
       "confidence": "verified",
       "source_tool": "full-audit",
       "message": "User input reaches db.query without parameterization.",
+      "trust_metadata": {
+        "provenance": {
+          "origin": "human_review",
+          "contributors": ["deterministic_tool", "human_review"]
+        },
+        "exploitability_status": "confirmed",
+        "false_positive_risk": {
+          "level": "low",
+          "reason": "Source-to-sink evidence was manually reviewed."
+        },
+        "confidence_reason": "Manual review confirmed unparameterized user input reaches the SQL sink."
+      },
       "evidence": [
         {
           "type": "code",
@@ -1149,7 +1161,7 @@ After generating the markdown report, you MUST also create a structured JSON fil
 
 **IMPORTANT - Shared field conventions** (consistent across scan, verify, and full-audit):
 1. Generate this JSON file using the Write tool AFTER generating the markdown report
-2. **schema_version**: always `"1.0.0"`
+2. **schema_version**: always `"1.2.0"` for new artifacts; older artifacts are accepted by renderers and migrated in memory
 3. **kind**: `"finding"` or `"hotspot"`
 4. **severity**: `"critical"`, `"high"`, `"medium"`, `"low"`, `"info"`
 5. **confidence**: `"verified"`, `"high"`, `"medium"`, `"low"`
@@ -1826,11 +1838,12 @@ These 8 agents run autonomously and integrate with the main audit workflow.
 
 Use the Write tool to create `.claude/findings.json` following the schema defined in Step 7 above. The same field conventions apply:
 
-- **schema_version**: `"1.0.0"`
+- **schema_version**: `"1.2.0"` for new artifacts
 - **stable_key**: required and stable across runs
 - **kind**: `"finding"` or `"hotspot"`
 - **source_tool**: required on every entry
 - **evidence**: required on every entry
+- **trust_metadata**: required on every v1.2.0 entry; mark provenance, exploitability status, false-positive risk, and confidence reason without overstating uncertainty
 - **verdict**: `"verified"`, `"false_positive"`, `"needs_review"`, `"unverified"`, `"na_cpg"`
 - **confidence**: `"verified"`, `"high"`, `"medium"`, `"low"`
 - only unsuppressed `finding` entries affect severity totals and `--fail-on`

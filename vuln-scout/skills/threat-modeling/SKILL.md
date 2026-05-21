@@ -1,6 +1,6 @@
 ---
 name: Threat Modeling
-description: This skill should be used when the user asks about "threat model", "STRIDE", "data flow diagram", "attack surface", "threat analysis", "security architecture", "component threats", "trust boundaries", "technology decomposition", or needs systematic threat identification during whitebox pentesting.
+description: This skill should be used when the user asks about "threat model", "STRIDE", "data flow diagram", "attack surface", "threat analysis", "security architecture", "component threats", "trust boundaries", "technology decomposition", or needs systematic threat identification during whitebox security review.
 version: 1.0.0
 ---
 
