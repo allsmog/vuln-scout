@@ -58,8 +58,8 @@ in the MCP response; `max_content_bytes` caps the returned content.
 
 Analyzer setup problems are returned as structured tool payloads. For example,
 if Joern is installed but `joern-parse` cannot create a CPG for the target,
-`vulnscout_create_cpg` returns `{"ok": false, "state": "failed", ...}` instead
-of failing the MCP request.
+`vulnscout_create_cpg` returns `{"ok": false, "state": "failed", ...}` or
+`{"ok": false, "state": "timed_out", ...}` instead of failing the MCP request.
 
 ## Resources
 
@@ -123,6 +123,8 @@ Then run a bounded query:
 ```
 
 The server returns stdout, stderr, the CPG path, and the Joern exit code.
+It also returns `output`, a cleaned version of stdout with Joern loader chatter
+removed for host display. Raw stdout/stderr remain available for debugging.
 
 Raw CPGQL executes locally with the privileges of the MCP host process. Use it
 for trusted workspaces and reviewer-controlled analysis.

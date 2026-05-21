@@ -174,6 +174,38 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(result["state"], "failed")
         self.assertIn("joern-parse failed", result["reason"])
 
+    def test_cpg_creation_preserves_json_timeout_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            failed = subprocess.CompletedProcess(
+                args=["create_cpg.py"],
+                returncode=1,
+                stdout=json.dumps({
+                    "cpgs": {},
+                    "languages": {
+                        "java": {
+                            "state": "timed_out",
+                            "findings": 0,
+                            "reason": "CPG creation timed out after 600 seconds",
+                        }
+                    },
+                }),
+                stderr="[ERROR] CPG creation timed out after 600 seconds",
+            )
+            with mock.patch.object(mcp_server, "_run", return_value=failed):
+                result = mcp_server.call_tool("vulnscout_create_cpg", {"target": tmpdir, "language": "java"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["state"], "timed_out")
+        self.assertEqual(result["languages"]["java"]["state"], "timed_out")
+
+    def test_joern_stdout_cleaner_removes_loader_chatter(self) -> None:
+        cleaned = mcp_server._clean_joern_stdout(
+            "[INFO ] initialising from existing storage\n"
+            "List(decode, encode)\n"
+        )
+
+        self.assertEqual(cleaned, "List(decode, encode)")
+
 
 if __name__ == "__main__":
     unittest.main()

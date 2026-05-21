@@ -145,6 +145,32 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertEqual(artifact["tool_status"]["by_tool"]["codeql"]["languages"]["java"]["state"], "timed_out")
         self.assertEqual(artifact["tool_status"]["by_tool"]["joern"]["state"], "unavailable")
 
+    def test_artifact_source_tool_uses_actual_finding_sources(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            scope = scan_orchestrator.ScanScope(Path(tmpdir), None, [], None)
+            artifact = scan_orchestrator.build_artifact(
+                [
+                    {
+                        "source_tool": "api-spec-parser",
+                        "kind": "finding",
+                        "type": "graphql-depth-limit",
+                        "severity": "medium",
+                        "title": "GraphQL schema has no depth limit configured",
+                        "file": "schema.graphql",
+                        "line": 1,
+                        "evidence": "type Query { health: String }",
+                        "confidence": "medium",
+                        "verdict": "unverified",
+                    }
+                ],
+                scope,
+                ["semgrep"],
+                profile="quick",
+            )
+
+        self.assertEqual(artifact["source_tool"], "api-spec-parser")
+        self.assertEqual(artifact["coverage"]["tools_used"], ["api-spec-parser", "semgrep"])
+
     def test_detect_languages_excludes_analyzer_cache_dirs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

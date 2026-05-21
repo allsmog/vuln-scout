@@ -110,7 +110,7 @@ def is_cache_valid(cpg_path: Path) -> bool:
     return cpg_path.exists() and cpg_path.stat().st_size > 0
 
 
-def create_cpg(source_dir: str, cpg_path: Path, language: str) -> None:
+def create_cpg(source_dir: str, cpg_path: Path, language: str, timeout: int = 600) -> None:
     """Run joern-parse to create a CPG."""
     if language not in JOERN_LANGUAGE_ARGS:
         raise ValueError(f"Joern CPG creation is not supported for {language}")
@@ -135,7 +135,7 @@ def create_cpg(source_dir: str, cpg_path: Path, language: str) -> None:
         cmd,
         capture_output=True,
         text=True,
-        timeout=600,
+        timeout=timeout,
         env=joern_environment(language),
     )
     if result.returncode != 0:
@@ -201,7 +201,13 @@ def cache_root_for(source_dir: str, cache_dir: str) -> Path:
     return Path(source_dir).resolve() / root
 
 
-def create_or_reuse_cpg(source_dir: str, cache_dir: str, language: str, no_cache: bool = False) -> Path:
+def create_or_reuse_cpg(
+    source_dir: str,
+    cache_dir: str,
+    language: str,
+    no_cache: bool = False,
+    timeout: int = 600,
+) -> Path:
     """Create or reuse one language-specific CPG and return its path."""
     if language not in JOERN_SUPPORTED_LANGUAGES:
         raise ValueError(f"Joern CPG creation is not supported for {language}")
@@ -212,8 +218,21 @@ def create_or_reuse_cpg(source_dir: str, cache_dir: str, language: str, no_cache
     if not no_cache and is_cache_valid(cpg_path):
         log.info("Using cached CPG: %s", cpg_path)
     else:
-        create_cpg(source_dir, cpg_path, language)
+        create_cpg(source_dir, cpg_path, language, timeout=timeout)
     return cpg_path
+
+
+def cpg_failure_payload(language: str, state: str, reason: str) -> dict[str, dict[str, object]]:
+    return {
+        "cpgs": {},
+        "languages": {
+            language: {
+                "state": state,
+                "findings": 0,
+                "reason": reason,
+            }
+        },
+    }
 
 
 def main() -> int:
@@ -224,6 +243,7 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Emit machine-readable CPG paths and statuses")
     parser.add_argument("--no-cache", action="store_true", help="Force CPG recreation")
     parser.add_argument("--cache-dir", default=".joern", help="CPG cache directory")
+    parser.add_argument("--timeout", type=int, default=600, help="joern-parse timeout in seconds")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s", stream=sys.stderr)
@@ -248,7 +268,7 @@ def main() -> int:
                 }
         for language in languages:
             try:
-                cpg_path = create_or_reuse_cpg(source_dir, args.cache_dir, language, args.no_cache)
+                cpg_path = create_or_reuse_cpg(source_dir, args.cache_dir, language, args.no_cache, timeout=args.timeout)
             except subprocess.CalledProcessError as e:
                 statuses[language] = {
                     "state": "failed",
@@ -260,7 +280,7 @@ def main() -> int:
                 statuses[language] = {
                     "state": "timed_out",
                     "findings": 0,
-                    "reason": "CPG creation timed out after 600 seconds",
+                    "reason": f"CPG creation timed out after {args.timeout} seconds",
                 }
                 continue
             except ValueError as e:
@@ -281,15 +301,23 @@ def main() -> int:
         return 1
 
     try:
-        cpg_path = create_or_reuse_cpg(source_dir, args.cache_dir, language, args.no_cache)
+        cpg_path = create_or_reuse_cpg(source_dir, args.cache_dir, language, args.no_cache, timeout=args.timeout)
     except ValueError as e:
+        if args.json:
+            print(json.dumps(cpg_failure_payload(language, "unsupported", str(e)), sort_keys=True))
         log.error(str(e))
         return 1
     except subprocess.CalledProcessError as e:
-        log.error("CPG creation failed: %s", e.stderr[:500] if e.stderr else str(e))
+        reason = e.stderr[:500] if e.stderr else str(e)
+        if args.json:
+            print(json.dumps(cpg_failure_payload(language, "failed", reason), sort_keys=True))
+        log.error("CPG creation failed: %s", reason)
         return 1
     except subprocess.TimeoutExpired:
-        log.error("CPG creation timed out after 600 seconds")
+        reason = f"CPG creation timed out after {args.timeout} seconds"
+        if args.json:
+            print(json.dumps(cpg_failure_payload(language, "timed_out", reason), sort_keys=True))
+        log.error(reason)
         return 1
 
     if args.json:

@@ -106,6 +106,7 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
                 "language": _schema_string("Optional single Joern-supported language."),
                 "cache_dir": _schema_string("CPG cache directory inside the workspace. Defaults to .joern."),
                 "no_cache": _schema_bool("Force CPG recreation."),
+                "timeout": {"type": "integer", "description": "joern-parse timeout in seconds. Defaults to 600.", "default": 600},
             },
             "required": ["target"],
         },
@@ -238,6 +239,17 @@ def _read_text_limited_to(path: Path, max_bytes: int) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _clean_joern_stdout(stdout: str) -> str:
+    """Remove Joern loader chatter while preserving query output lines."""
+    noisy_prefixes = ("[INFO", "[WARN", "SLF4J:")
+    lines = [
+        line
+        for line in stdout.splitlines()
+        if line.strip() and not line.lstrip().startswith(noisy_prefixes)
+    ]
+    return "\n".join(lines)
+
+
 def _content(payload: Any) -> dict[str, Any]:
     return {
         "content": [
@@ -359,10 +371,25 @@ def tool_vulnscout_create_cpg(args: dict[str, Any]) -> dict[str, Any]:
         cmd.extend(["--language", str(args["language"])])
     else:
         cmd.append("--all-languages")
+    if args.get("timeout"):
+        cmd.extend(["--timeout", str(int(args["timeout"]))])
     if args.get("no_cache"):
         cmd.append("--no-cache")
     result = _run(cmd, timeout=900)
     if result.returncode != 0:
+        try:
+            payload = json.loads(result.stdout) if result.stdout.strip() else None
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict) and payload.get("languages"):
+            payload["ok"] = False
+            states = {
+                str(status.get("state"))
+                for status in payload.get("languages", {}).values()
+                if isinstance(status, dict) and status.get("state")
+            }
+            payload.setdefault("state", "timed_out" if states == {"timed_out"} else "failed")
+            return payload
         return {
             "ok": False,
             "state": "failed",
@@ -431,6 +458,7 @@ def tool_vulnscout_joern_query(args: dict[str, Any]) -> dict[str, Any]:
         "ok": result.returncode == 0,
         "returncode": result.returncode,
         "cpg": str(cpg_path),
+        "output": _clean_joern_stdout(stdout),
         "stdout": stdout,
         "stderr": stderr,
     }

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import importlib.util
+import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -153,6 +156,37 @@ class PathHardeningTests(unittest.TestCase):
 
     def test_create_cpg_uses_pythonsrc_frontend(self):
         self.assertEqual(create_cpg.JOERN_LANGUAGE_ARGS["python"], "pythonsrc")
+
+    def test_create_cpg_single_language_timeout_returns_json_status(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = Path(tmpdir)
+            (repo / "App.java").write_text("class App {}\n")
+            argv = [
+                "create_cpg.py",
+                str(repo),
+                "--language",
+                "java",
+                "--json",
+                "--timeout",
+                "1",
+            ]
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+
+            with mock.patch.object(sys, "argv", argv):
+                with mock.patch.object(create_cpg.shutil, "which", return_value="/usr/bin/joern-parse"):
+                    with mock.patch.object(
+                        create_cpg,
+                        "create_or_reuse_cpg",
+                        side_effect=subprocess.TimeoutExpired(["joern-parse"], 1),
+                    ):
+                        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                            exit_code = create_cpg.main()
+
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(payload["languages"]["java"]["state"], "timed_out")
+        self.assertIn("1 seconds", payload["languages"]["java"]["reason"])
 
     def test_create_cpg_sets_astgen_bin_for_homebrew_javascript(self):
         with tempfile.TemporaryDirectory() as tmpdir:

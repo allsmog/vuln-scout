@@ -524,7 +524,22 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
     apply_verification_levels(findings)
     for finding in findings:
         finding.setdefault("trust_metadata", build_trust_metadata(finding))
-    source_tool = tools_used[0] if len(tools_used) == 1 else "multi"
+    finding_sources = sorted({
+        str(finding.get("source_tool"))
+        for finding in findings
+        if finding.get("source_tool")
+    })
+    if len(finding_sources) == 1:
+        source_tool = finding_sources[0]
+    elif len(finding_sources) > 1:
+        source_tool = "multi"
+    elif len(tools_used) == 1:
+        source_tool = tools_used[0]
+    elif tools_used:
+        source_tool = "multi"
+    else:
+        source_tool = "none"
+    coverage_tools = sorted(set(tools_used) | set(finding_sources))
     artifact: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "scan_id": str(uuid.uuid4()),
@@ -534,7 +549,7 @@ def build_artifact(findings: list[dict[str, Any]], scope: ScanScope,
         "summary": summarize_findings(findings),
         "findings": findings,
         "coverage": {
-            "tools_used": tools_used,
+            "tools_used": coverage_tools,
             "scan_scope": "diff" if scope.changed_files is not None else "full",
             "diff_aware": scope.changed_files is not None,
             "diff_ref": scope.diff_ref or "",
