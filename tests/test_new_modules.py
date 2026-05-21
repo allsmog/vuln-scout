@@ -651,6 +651,36 @@ class ApiSpecParserTests(unittest.TestCase):
             findings = api_spec_parser.run(tmpdir)
             self.assertEqual(len(findings), 0)
 
+    def test_graphql_operation_file_does_not_emit_schema_limit_noise(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            operation = Path(tmpdir) / "delete_payment_method_mutation.graphql"
+            operation.write_text(
+                "mutation DeletePaymentMethodFromSingleUseToken($input: DeletePaymentMethodFromSingleUseTokenInput!) {\n"
+                "  deletePaymentMethodFromSingleUseToken(input: $input) { clientMutationId }\n"
+                "}\n"
+            )
+
+            findings = api_spec_parser.run(tmpdir)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["type"], "graphql-sensitive-client-mutation")
+        self.assertEqual(findings[0]["confidence"], "high")
+        self.assertEqual(findings[0]["analysis_style"], "code-contract")
+        self.assertIn("Trigger condition", findings[0]["message"])
+        self.assertIn("impact", findings[0]["verification"])
+
+    def test_graphql_schema_still_emits_limit_findings(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            schema = Path(tmpdir) / "schema.graphql"
+            schema.write_text("type Query { viewer: User }\ntype User { id: ID! }\n")
+
+            findings = api_spec_parser.run(tmpdir)
+
+        self.assertEqual({finding["type"] for finding in findings}, {
+            "graphql-no-depth-limit",
+            "graphql-no-complexity-limit",
+        })
+
 
 # ===================================================================
 # Pipeline Engine

@@ -48,6 +48,7 @@ class ScanCliParityTests(unittest.TestCase):
         self.assertIn("--no-semantic-analysis", help_text)
         self.assertNotIn("--no-claude-analysis", help_text)
         self.assertNotIn("--scope", help_text)
+        self.assertIn("api-spec", help_text)
 
     def test_write_output_creates_parent_directories(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -170,6 +171,80 @@ class ScanCliParityTests(unittest.TestCase):
 
         self.assertEqual(artifact["source_tool"], "api-spec-parser")
         self.assertEqual(artifact["coverage"]["tools_used"], ["api-spec-parser", "semgrep"])
+
+    def test_api_spec_virtual_tool_is_available(self):
+        self.assertTrue(scan_orchestrator.scanner_availability()["api-spec"]())
+
+    def test_code_contract_confidence_is_not_lowered_by_correlation(self):
+        findings = [{
+            "source_tool": "api-spec-parser",
+            "kind": "finding",
+            "verdict": "unverified",
+            "confidence": "high",
+            "analysis_style": "code-contract",
+        }]
+
+        updated = scan_orchestrator.correlation_engine.correlate_findings(findings)
+
+        self.assertEqual(updated[0]["confidence"], "high")
+
+    def test_extended_detector_status_is_recorded(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            result_findings = [{
+                "source_tool": "vuln-class-detector",
+                "kind": "finding",
+                "type": "mobile-js-bridge-payment-token",
+                "severity": "medium",
+                "title": "Payment bridge",
+                "file": "app.java",
+                "line": 1,
+                "evidence": "bridge",
+                "confidence": "high",
+                "verdict": "unverified",
+            }]
+            scope = scan_orchestrator.ScanScope(root, None, [], None)
+
+            with mock.patch.object(
+                scan_orchestrator.pipeline_engine,
+                "run_pipeline",
+                return_value=scan_orchestrator.pipeline_engine.PipelineResult(),
+            ):
+                with mock.patch.object(
+                    scan_orchestrator.vuln_class_detectors,
+                    "run_all_detectors",
+                    return_value=result_findings,
+                ):
+                    result = scan_orchestrator.run_tools(
+                        scope,
+                        {},
+                        ["api-spec"],
+                        str(scan_orchestrator.DEFAULT_LOCAL_RULES),
+                        run_extended_detectors=True,
+                    )
+
+        self.assertEqual(result.tool_statuses["vuln-class-detector"]["findings"], 1)
+        self.assertIn("vuln-class-detector", result.tools_succeeded)
+
+    def test_attach_tool_status_includes_sidecar_detector_status(self):
+        artifact = {}
+        result = scan_orchestrator.ToolRunResult(
+            findings=[],
+            tools_succeeded=["vuln-class-detector"],
+            tools_failed=[],
+            tool_statuses={
+                "vuln-class-detector": {
+                    "tool": "vuln-class-detector",
+                    "state": "succeeded",
+                    "findings": 2,
+                }
+            },
+        )
+
+        scan_orchestrator.attach_tool_status(artifact, ["api-spec"], ["api-spec"], result)
+
+        self.assertEqual(artifact["tool_status"]["by_tool"]["api-spec"]["state"], "skipped")
+        self.assertEqual(artifact["tool_status"]["by_tool"]["vuln-class-detector"]["findings"], 2)
 
     def test_detect_languages_excludes_analyzer_cache_dirs(self):
         with tempfile.TemporaryDirectory() as tmpdir:

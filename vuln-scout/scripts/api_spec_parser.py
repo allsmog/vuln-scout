@@ -165,6 +165,8 @@ def parse_graphql_schema(schema_path: str) -> dict[str, Any] | None:
     if text is None:
         return None
 
+    operations = parse_graphql_operations_text(text)
+
     # Extract type definitions
     types: list[dict[str, Any]] = []
     type_pattern = re.compile(r'type\s+(\w+)\s*(?:@\w+(?:\([^)]*\))?\s*)*\{([^}]+)\}', re.DOTALL)
@@ -196,6 +198,8 @@ def parse_graphql_schema(schema_path: str) -> dict[str, Any] | None:
     has_complexity_limit = bool(re.search(r'(?:complexityLimit|maxComplexity|cost\s*:\s*\d+)', text, re.IGNORECASE))
 
     return {
+        "document_kind": "schema" if types else "operations",
+        "operations": operations,
         "types": types,
         "query_type": next((t for t in types if t["name"] == "Query"), None),
         "mutation_type": next((t for t in types if t["name"] == "Mutation"), None),
@@ -203,6 +207,47 @@ def parse_graphql_schema(schema_path: str) -> dict[str, Any] | None:
         "has_depth_limit": has_depth_limit,
         "has_complexity_limit": has_complexity_limit,
     }
+
+
+def parse_graphql_operations_text(text: str) -> list[dict[str, Any]]:
+    """Extract operation names, variables, and root fields from GraphQL documents."""
+    operations: list[dict[str, Any]] = []
+    op_pattern = re.compile(
+        r'\b(query|mutation|subscription)\s+(\w+)?\s*(?:\(([^)]*)\))?\s*\{',
+        re.IGNORECASE | re.MULTILINE,
+    )
+    for match in op_pattern.finditer(text):
+        operation_type = match.group(1).lower()
+        operation_name = match.group(2) or ""
+        variables_text = match.group(3) or ""
+        body_start = match.end()
+        body_end = _find_matching_brace(text, body_start - 1)
+        body = text[body_start:body_end] if body_end != -1 else text[body_start:]
+        fields = re.findall(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|\{)', body)
+        variables = [
+            {"name": var, "type": var_type.strip()}
+            for var, var_type in re.findall(r'\$(\w+)\s*:\s*([^,$)]+)', variables_text)
+        ]
+        operations.append({
+            "operation_type": operation_type,
+            "operation_name": operation_name,
+            "variables": variables,
+            "root_fields": fields[:5],
+        })
+    return operations
+
+
+def _find_matching_brace(text: str, open_brace_index: int) -> int:
+    depth = 0
+    for index in range(open_brace_index, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return index
+    return -1
 
 
 # ---------------------------------------------------------------------------
@@ -260,6 +305,9 @@ def check_graphql_security(schema: dict[str, Any], spec_file: str) -> list[dict[
     """Check GraphQL schema for security issues."""
     findings: list[dict[str, Any]] = []
 
+    if schema.get("document_kind") == "operations":
+        return check_graphql_operations(schema.get("operations", []), spec_file)
+
     if not schema.get("has_depth_limit"):
         findings.append(_make_finding(
             "graphql-no-depth-limit", "medium",
@@ -286,6 +334,61 @@ def check_graphql_security(schema: dict[str, Any], spec_file: str) -> list[dict[
             spec_file, 0,
         ))
 
+    return findings
+
+
+_SENSITIVE_GRAPHQL_WORDS = re.compile(
+    r"(?i)(delete|remove|unlink|finalize|link|token|payment|card|account|auth|consent)"
+)
+
+
+def check_graphql_operations(operations: list[dict[str, Any]], spec_file: str) -> list[dict[str, Any]]:
+    """Find sensitive client-shipped GraphQL operations that need server-side validation review."""
+    findings: list[dict[str, Any]] = []
+    for operation in operations:
+        if operation.get("operation_type") != "mutation":
+            continue
+        operation_name = str(operation.get("operation_name") or "")
+        root_fields = [str(field) for field in operation.get("root_fields", [])]
+        signal = " ".join([operation_name, *root_fields])
+        if not _SENSITIVE_GRAPHQL_WORDS.search(signal):
+            continue
+
+        variables = operation.get("variables", [])
+        variable_summary = ", ".join(
+            f"${var.get('name')}: {var.get('type')}" for var in variables
+        ) or "no declared variables"
+        title = f"Sensitive GraphQL mutation shipped in client resources: {operation_name or root_fields[0]}"
+        message = (
+            f"Client resource defines mutation `{operation_name}` calling `{', '.join(root_fields)}` "
+            f"with variables {variable_summary}. Trigger condition: a client able to invoke the backend "
+            f"GraphQL API can submit this mutation shape. Security impact depends on server-side ownership, "
+            f"token binding, replay protection, and consent validation for the referenced payment/account action."
+        )
+        finding = _make_finding(
+            "graphql-sensitive-client-mutation",
+            "medium",
+            title,
+            message,
+            spec_file,
+            1,
+        )
+        finding["stable_key"] = f"graphql-sensitive-client-mutation:{operation_name}:{root_fields[0] if root_fields else ''}"
+        finding["confidence"] = "high"
+        finding["analysis_style"] = "code-contract"
+        finding["verification"] = {
+            "trigger_conditions": [
+                f"Invoke `{operation_name}` with the declared input object.",
+                "Vary token, partner, account, or payment identifiers across authenticated accounts.",
+            ],
+            "impact": "Potential account/payment state change if server authorization is not bound to the caller.",
+            "validation_steps": [
+                "Trace the input DTO/server resolver for ownership checks.",
+                "Confirm token single-use, expiry, and account binding on the server.",
+                "Attempt only authorized bug-bounty-safe replay/substitution tests.",
+            ],
+        }
+        findings.append(finding)
     return findings
 
 

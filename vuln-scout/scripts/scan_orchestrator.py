@@ -160,6 +160,7 @@ def resolve_profile_config(
 
 def scanner_availability() -> dict[str, Any]:
     return {
+        "api-spec": lambda: True,
         "semgrep": semgrep_runner.is_available,
         "joern": joern_runner.is_available,
         "codeql": codeql_runner.is_available,
@@ -437,6 +438,13 @@ def run_tools(scope: ScanScope, languages: dict[str, list[str]],
         if extended:
             log.info("Extended detectors produced %d findings", len(extended))
             all_findings.extend(extended)
+            pipeline_result.tool_statuses["vuln-class-detector"] = {
+                "tool": "vuln-class-detector",
+                "state": "succeeded",
+                "findings": len(extended),
+            }
+            if "vuln-class-detector" not in pipeline_result.tools_succeeded:
+                pipeline_result.tools_succeeded.append("vuln-class-detector")
     else:
         log.info("Quick profile: skipping extended detectors")
 
@@ -579,6 +587,15 @@ def attach_tool_status(artifact: dict[str, Any], requested: list[str],
             by_tool[tool] = {"tool": tool, "state": "succeeded", "findings": 0}
         else:
             by_tool[tool] = {"tool": tool, "state": "skipped", "findings": 0}
+
+    for tool, raw_status in raw_statuses.items():
+        if tool in by_tool:
+            continue
+        status = dict(raw_status)
+        status.setdefault("tool", tool)
+        status.setdefault("findings", 0)
+        status.setdefault("state", "succeeded")
+        by_tool[tool] = status
 
     artifact["tool_status"] = {
         "requested": requested,
@@ -734,7 +751,7 @@ def main() -> int:
         )
         if custom_rules:
             log.info("Generated %d custom Semgrep rules", len(custom_rules))
-    else:
+    elif "semgrep" in tools:
         log.info("Quick profile: using bundled local rules only")
 
     # Stage 2e: Extract business context
@@ -781,7 +798,7 @@ def main() -> int:
             return 1
 
     if not available:
-        log.error("No scanning tools available. Install semgrep, joern, gitleaks, or codeql.")
+        log.error("No scanning tools available. Install semgrep, joern, gitleaks, or codeql, or use --tools api-spec.")
         return 1
 
     log.info("Profile maturity: quick=stable | deep=beta | audit=beta")
@@ -816,6 +833,14 @@ def main() -> int:
     # Merge in API spec findings
     if api_findings:
         findings.extend(api_findings)
+        if "api-spec" in tools:
+            tool_result.tool_statuses["api-spec"] = {
+                "tool": "api-spec",
+                "state": "succeeded",
+                "findings": len(api_findings),
+            }
+            if "api-spec" not in tool_result.tools_succeeded:
+                tool_result.tools_succeeded.append("api-spec")
 
     # Stage 4: Merge and normalize
     findings = merge_and_normalize(findings, scope)
@@ -929,7 +954,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="quick",
         help="Scan profile: quick=local deterministic rules, deep=installed analyzers, audit=deterministic Claude-driven review baseline",
     )
-    parser.add_argument("--tools", help="Override profile tools. Comma-separated: semgrep,joern,codeql,secrets,trivy,checkov,slither")
+    parser.add_argument("--tools", help="Override profile tools. Comma-separated: api-spec,semgrep,joern,codeql,secrets,trivy,checkov,slither")
     parser.add_argument("--rules", help="Override profile Semgrep ruleset or local rules path")
     parser.add_argument("--workspace", help="Resolve and scan a workspace/module directory under the target path")
     parser.add_argument("--scope", help=argparse.SUPPRESS)

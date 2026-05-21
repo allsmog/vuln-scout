@@ -1,7 +1,7 @@
 ---
 name: scan
 description: "[beta] Run quick, deep, or audit scan profiles and emit a shared findings artifact"
-argument-hint: "[path] [--profile quick|deep|audit] [--tools semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html|pr-comment|badge] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
+argument-hint: "[path] [--profile quick|deep|audit] [--tools api-spec,semgrep,codeql,joern] [--rules ruleset] [--workspace name] [--since-commit sha] [--diff-base ref] [--exclude patterns] [--suppressions path] [--format json|sarif|md|html|pr-comment|badge] [--fail-on severity] [--output file] [--json] [--secrets] [--require-tools] [--custom-rules] [--extended-detectors] [--incremental] [--generate-pocs] [--no-filter] [--no-semantic-analysis]"
 allowed-tools:
   - Bash
   - Glob
@@ -19,7 +19,7 @@ Run automated static analysis and write the results to `.claude/findings.json`.
 | Flag | Effect |
 |------|--------|
 | `--profile` | Use `quick` (local deterministic rules), `deep` (installed analyzers), or `audit` (deterministic baseline for Claude-driven review) |
-| `--tools` | Run `semgrep`, `codeql`, `joern`, or a comma-separated combination |
+| `--tools` | Run `api-spec`, `semgrep`, `codeql`, `joern`, or a comma-separated combination |
 | `--rules` | Semgrep ruleset override |
 | `--workspace` | Resolve a monorepo workspace before scanning |
 | `--since-commit` | Scan files changed since a commit SHA |

@@ -141,6 +141,31 @@ def _make_finding(vuln_type: str, title: str, file: str, line: int,
     }
 
 
+def _make_code_contract_finding(
+    vuln_type: str,
+    title: str,
+    file: str,
+    line: int,
+    excerpt: str,
+    message: str,
+    severity: str = "medium",
+    trigger_conditions: list[str] | None = None,
+    impact: str | None = None,
+    validation_steps: list[str] | None = None,
+) -> dict[str, Any]:
+    finding = _make_finding(
+        vuln_type, title, file, line, excerpt, message, severity, "finding"
+    )
+    finding["confidence"] = "high"
+    finding["analysis_style"] = "code-contract"
+    finding["verification"] = {
+        "trigger_conditions": trigger_conditions or [],
+        "impact": impact or "Security impact depends on server-side validation and caller reachability.",
+        "validation_steps": validation_steps or [],
+    }
+    return finding
+
+
 # ---------------------------------------------------------------------------
 # Race Conditions / TOCTOU
 # ---------------------------------------------------------------------------
@@ -802,6 +827,113 @@ def detect_stored_xss_risk(root: Path, file_index: FileIndex | None = None) -> l
 
 
 # ---------------------------------------------------------------------------
+# Mobile payment code contracts
+# ---------------------------------------------------------------------------
+
+def _line_for(lines: list[str], pattern: str) -> tuple[int, str]:
+    regex = re.compile(pattern)
+    for index, line in enumerate(lines, 1):
+        if regex.search(line):
+            return index, line.strip()[:200]
+    return 1, lines[0].strip()[:200] if lines else ""
+
+
+def detect_mobile_payment_code_contracts(root: Path, file_index: FileIndex | None = None) -> list[dict[str, Any]]:
+    """Detect high-signal mobile payment trust-boundary code contracts."""
+    findings: list[dict[str, Any]] = []
+    files = file_index.files_with_suffixes({".java"}) if file_index else root.rglob("*.java")
+    for path in files:
+        if _is_excluded(path):
+            continue
+        rel = str(path.relative_to(root))
+        path_signal = f"{rel} {path}"
+        if "payment" not in path_signal.lower():
+            continue
+        try:
+            text = path.read_text(errors="replace")
+        except OSError:
+            continue
+        lines = text.splitlines()
+
+        if "@JavascriptInterface" in text and "new mw3(" in text:
+            line, excerpt = _line_for(lines, r"@JavascriptInterface|new\s+mw3\(")
+            findings.append(_make_code_contract_finding(
+                "mobile-js-bridge-payment-token",
+                "Payment WebView JavaScript bridge constructs native token object from JS-controlled strings",
+                rel, line, excerpt,
+                "A JavaScriptInterface method receives raw string values from WebView JavaScript and constructs "
+                "the native payment token object without visible validation. Trigger condition: JavaScript running "
+                "in the payment WebView calls the bridge callback with attacker-chosen encryption output fields.",
+                "medium",
+                trigger_conditions=[
+                    "Reach the payment WebView flow that registers the JavaScriptInterface.",
+                    "Execute or influence JavaScript in that WebView context before token construction.",
+                ],
+                impact=(
+                    "Arbitrary bridge values can flow into payment-token construction if WebView script integrity "
+                    "or origin isolation fails."
+                ),
+                validation_steps=[
+                    "Confirm whether only app-bundled JS can execute in the WebView.",
+                    "Trace bridge arguments into token submission and server-side validation.",
+                    "Check WebView settings, loaded URL/data origin, and any addJavascriptInterface exposure.",
+                ],
+            ))
+
+        if (
+            "ExternalPaymentProcessor.BRAINTREE" in text
+            and "PaymentMethodType.PAYPAL" in text
+            and "braintree" in rel.lower()
+        ):
+            line, excerpt = _line_for(lines, r"PaymentMethodType\.PAYPAL|ExternalPaymentProcessor\.BRAINTREE")
+            findings.append(_make_code_contract_finding(
+                "braintree-client-token-scope-mismatch",
+                "Braintree client token request hardcodes PAYPAL scope in payment processor code",
+                rel, line, excerpt,
+                "Braintree API key/token request code pairs ExternalPaymentProcessor.BRAINTREE with "
+                "PaymentMethodType.PAYPAL. Trigger condition: a non-PayPal Braintree payment path reuses this "
+                "client token. The code-level risk is a token-scope mismatch for card/device-data flows.",
+                "medium",
+                trigger_conditions=[
+                    "Call a Braintree card or device-data flow that obtains its token through this service.",
+                    "Observe whether the requested token is scoped for PAYPAL while downstream code performs card/device operations.",
+                ],
+                impact=(
+                    "Payment-token or fraud-signal flows may run with the wrong processor scope, depending on "
+                    "server-side token validation."
+                ),
+                validation_steps=[
+                    "Trace call sites of the token service into Braintree card and data collection classes.",
+                    "Confirm server response token scope and downstream SDK behavior.",
+                    "Verify whether card tokenization rejects or accepts a PAYPAL-scoped token.",
+                ],
+            ))
+
+        if "new TokenizerError" in text and "getMessage()" in text and "Exception" in text:
+            line, excerpt = _line_for(lines, r"getMessage\(\)|new\s+TokenizerError")
+            findings.append(_make_code_contract_finding(
+                "payment-exception-message-propagation",
+                "Payment exception message is copied into TokenizerError",
+                rel, line, excerpt,
+                "Payment error handling copies raw exception messages into TokenizerError objects. Trigger "
+                "condition: the payment provider or network stack returns an exception containing sensitive or "
+                "internal response details.",
+                "low",
+                trigger_conditions=[
+                    "Force a payment-provider network error whose exception message contains backend detail.",
+                    "Trace whether TokenizerError is logged, displayed, or sent to telemetry.",
+                ],
+                impact="Internal payment/provider details may leak through logs, telemetry, or user-visible errors.",
+                validation_steps=[
+                    "Inspect downstream TokenizerError consumers.",
+                    "Confirm redaction before analytics/logging/UI display.",
+                ],
+            ))
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -835,6 +967,7 @@ def run_all_detectors(target_path: str) -> list[dict[str, Any]]:
         ("IDOR", detect_missing_ownership_check),
         ("frontend XSS", detect_frontend_xss),
         ("stored XSS risk", detect_stored_xss_risk),
+        ("mobile payment code contracts", detect_mobile_payment_code_contracts),
     ]
 
     for name, detector in detectors:

@@ -285,6 +285,29 @@ class PathHardeningTests(unittest.TestCase):
 
             self.assertEqual(languages, {"python": ["app.py"]})
 
+    def test_mobile_payment_code_contract_detector_finds_js_bridge_token_flow(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            target = root / "com" / "lyft" / "android" / "payment" / "processors" / "services" / "chase" / "js"
+            target.mkdir(parents=True)
+            (target / "EncryptionListener.java").write_text(
+                "package demo;\n"
+                "import android.webkit.JavascriptInterface;\n"
+                "class EncryptionListener {\n"
+                "  @JavascriptInterface\n"
+                "  public void onEncryptionComplete(String a, String b, String c) {\n"
+                "    Object token = new mw3(a, b, c);\n"
+                "  }\n"
+                "}\n"
+            )
+
+            findings = scan_orchestrator.vuln_class_detectors.detect_mobile_payment_code_contracts(root)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["type"], "mobile-js-bridge-payment-token")
+        self.assertEqual(findings[0]["analysis_style"], "code-contract")
+        self.assertEqual(findings[0]["confidence"], "high")
+
     def test_semantic_context_reader_rejects_path_escape(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

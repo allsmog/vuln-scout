@@ -43,6 +43,8 @@ def correlate_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
         tool = f.get("source_tool", "")
         current_confidence = f.get("confidence", "medium")
+        if f.get("analysis_style") == "code-contract" and current_confidence == "high":
+            continue
 
         if tool == "multi":
             # Multiple tools agree → boost to high confidence
